@@ -1,0 +1,156 @@
+[gd_scene load_steps=2 format=3 uid="uid://bvomgo8gg2nge"]
+
+[ext_resource type="Script" uid="uid://dhtlqy8kdtcrq" path="res://editor_main_scene.gd" id="1_swu64"]
+
+[node name="EditorMainScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_swu64")
+
+[node name="Main" type="GridContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="DirInfo" type="HBoxContainer" parent="Main"]
+layout_mode = 2
+
+[node name="ChangeDirButton" type="Button" parent="Main/DirInfo"]
+layout_mode = 2
+text = "change working directory"
+
+[node name="DirName" type="Label" parent="Main/DirInfo"]
+layout_mode = 2
+text = "cwd: lorem ipsum\\dolor sit amet"
+
+[node name="CWDInfo" type="HBoxContainer" parent="Main"]
+layout_mode = 2
+
+[node name="FileCount" type="Label" parent="Main/CWDInfo"]
+layout_mode = 2
+text = "Total CSVs: 1000"
+
+[node name="KeyCount" type="Label" parent="Main/CWDInfo"]
+layout_mode = 2
+text = "Total string keys: 1000"
+
+[node name="UniqueL10Ns" type="Label" parent="Main/CWDInfo"]
+layout_mode = 2
+text = "Strings missing one or more localizations: 0"
+
+[node name="FileInfo" type="HBoxContainer" parent="Main"]
+layout_mode = 2
+
+[node name="AddFile" type="Button" parent="Main/FileInfo"]
+layout_mode = 2
+text = "add file"
+
+[node name="ChangeFile" type="Button" parent="Main/FileInfo"]
+layout_mode = 2
+text = "change file"
+
+[node name="CurrentFile" type="Label" parent="Main/FileInfo"]
+layout_mode = 2
+text = "Current File: none"
+
+[node name="KeyCount" type="Label" parent="Main/FileInfo"]
+layout_mode = 2
+text = "string keys: 10"
+
+[node name="UniqueL10Ns" type="Label" parent="Main/FileInfo"]
+layout_mode = 2
+text = "Strings missing one or more localizations: 0"
+
+[node name="KeySelect" type="HBoxContainer" parent="Main"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="KeyFilter" type="LineEdit" parent="Main/KeySelect"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+size_flags_vertical = 0
+placeholder_text = "filter"
+
+[node name="ItemList" type="ItemList" parent="Main/KeySelect"]
+custom_minimum_size = Vector2(0, 150)
+layout_mode = 2
+size_flags_horizontal = 3
+allow_search = false
+auto_width = true
+item_count = 2
+max_columns = 10
+same_column_width = true
+item_0/text = "item"
+item_1/text = "item2"
+
+[node name="KeyInfo" type="HBoxContainer" parent="Main"]
+layout_mode = 2
+
+[node name="AddNewKey" type="Button" parent="Main/KeyInfo"]
+layout_mode = 2
+text = "add new key"
+
+[node name="AddNewLocalization" type="Button" parent="Main/KeyInfo"]
+layout_mode = 2
+text = "add new localization"
+
+[node name="CheckBox" type="CheckBox" parent="Main/KeyInfo"]
+layout_mode = 2
+text = "Edit side by side"
+
+[node name="KeyEditLabel" type="Label" parent="Main/KeyInfo"]
+layout_mode = 2
+text = "change key:"
+
+[node name="KeyEdit" type="LineEdit" parent="Main/KeyInfo"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+size_flags_vertical = 0
+placeholder_text = "key edit"
+
+[node name="Warnings" type="Label" parent="Main/KeyInfo"]
+layout_mode = 2
+text = "warnings: none"
+
+[node name="LocalizationInfo" type="HBoxContainer" parent="Main"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="LocalizationSelect" type="OptionButton" parent="Main/LocalizationInfo"]
+layout_mode = 2
+size_flags_vertical = 0
+selected = 0
+item_count = 2
+popup/item_0/text = "en"
+popup/item_0/id = 0
+popup/item_1/text = "ru"
+popup/item_1/id = 1
+
+[node name="TextEdit" type="TextEdit" parent="Main/LocalizationInfo"]
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "edit text"
+
+[node name="OtherLocalization" type="OptionButton" parent="Main/LocalizationInfo"]
+layout_mode = 2
+size_flags_vertical = 0
+selected = 0
+item_count = 2
+popup/item_0/text = "en"
+popup/item_0/id = 0
+popup/item_1/text = "ru"
+popup/item_1/id = 1
+
+[node name="OtherEdit" type="TextEdit" parent="Main/LocalizationInfo"]
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "edit text"
