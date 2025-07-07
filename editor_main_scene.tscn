@@ -64,7 +64,7 @@ text = "Current File: none"
 layout_mode = 2
 text = "string keys: 10"
 
-[node name="UniqueL10Ns" type="Label" parent="Main/FileInfo"]
+[node name="Missing" type="Label" parent="Main/FileInfo"]
 layout_mode = 2
 text = "Strings missing one or more localizations: 0"
 
@@ -78,14 +78,12 @@ layout_mode = 2
 size_flags_vertical = 0
 placeholder_text = "filter"
 
-[node name="ItemList" type="ItemList" parent="Main/KeySelect"]
+[node name="KeyList" type="ItemList" parent="Main/KeySelect"]
 custom_minimum_size = Vector2(0, 150)
 layout_mode = 2
 size_flags_horizontal = 3
-allow_search = false
-auto_width = true
 item_count = 2
-max_columns = 10
+max_columns = 0
 same_column_width = true
 item_0/text = "item"
 item_1/text = "item2"

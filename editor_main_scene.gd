@@ -3,16 +3,28 @@ extends Control
 
 var block_input : bool = false;
 var data := CWDState.new();
+var key_filter : String = "";
 
 
 func _ready() -> void:
 	$Main/DirInfo/ChangeDirButton.pressed.connect(change_folder);
-	data.task_update.connect(update_progress);
 
 
-func update_progress() -> void:
-	$Main/Progress.visible = data.current_task != "";
-	$Main/Progress.text = "%s[%s]" % [data.current_task, data.current_task_progress];
+func update_cwd_data_display() -> void:
+	$Main/DirInfo/DirName.text = data.cwd_handle.get_current_dir(true);
+	$Main/CWDInfo/FileCount.text = "files found: %d" % data.cwd_files.size();
+	$Main/CWDInfo/KeyCount.text = "total keys: %d" % data.keys.size();
+	$Main/CWDInfo/UniqueL10Ns.text = "total l10ns: %d" % data.localizations.size();
+
+
+func refresh_list_of_keys() -> void:
+	$Main/KeySelect/KeyList.clear();
+	for key in data.keys.keys().filter(keys_filter):
+		$Main/KeySelect/KeyList.add_item(key);
+
+
+func keys_filter(key: String) -> bool:
+	return true;
 
 
 func change_folder() -> void:
@@ -36,7 +48,9 @@ func cancel_change_folder(dialog: FileDialog) -> void:
 
 
 func finish_change_folder(dir: String, dialog: FileDialog) -> void:
-	var path = dialog.current_dir;
-	data.scan_cwd(path);
-	await data.task_finished;
+	data.scan_cwd(dir);
+	
+	update_cwd_data_display();
+	refresh_list_of_keys();
+	
 	block_input = false;

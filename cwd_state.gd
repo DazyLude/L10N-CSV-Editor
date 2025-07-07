@@ -10,10 +10,10 @@ var cwd_files : PackedStringArray = [];
 #region cwd data
 ## idx of a "current" file
 var current_file_idx : int = -1;
-## unique string keys and paths to the files they're located in.
-var keys : Dictionary[String, KeyData] = {};
 ## uniques localization keys
 var localizations : Dictionary[String, LocaleData] = {};
+## unique string keys and paths to the files they're located in.
+var keys : Dictionary[String, KeyData] = {};
 ## non unique string key file paths
 var non_unique_keys : Dictionary[String, NonUniqueKeyData] = {};
 #endregion
@@ -58,12 +58,58 @@ func read_file_contents(path: String) -> void:
 		push_error("malformed header: first value not \"key\" (%s)" % path);
 		return;
 	
+	for locale_idx in range(1, header.size()):
+		var locale_key := header[locale_idx];
+		if locale_key == "":
+			push_error("malformed header: locale field empty (%s)" % path);
+			continue;
+		
+		register_locale(locale_key, path);
+	
+	var file_idx = cwd_files.find(path);
 	while file_handle.get_position() < file_handle.get_length():
 		var line := file_handle.get_csv_line();
+		if line.size() == 0 or line[0] == "":
+			continue;
+		register_key(line, header.size() - 1, file_idx);
 		
 
+func register_locale(locale: String, file: String) -> void:
+	if localizations.has(locale):
+		localizations[locale].missing_files.erase(file);
+	else:
+		localizations[locale] = LocaleData.new();
+		localizations[locale].missing_files = Array(Array(cwd_files), TYPE_STRING, &"", null);
+		localizations[locale].missing_files.erase(file);
+
+
+func register_key(line: PackedStringArray, localization_count: int, file_idx: int) -> void:
+	var key = line[0];
+	var empty_l10ns = line.count("");
 	
+	if non_unique_keys.has(key):
+		var data := non_unique_keys[key];
+		data.file_idxs.push_back(file_idx);
+		data.localization_count += localization_count - empty_l10ns;
+		return;
 	
+	if keys.has(key):
+		var old_data = keys[key];
+		var data = NonUniqueKeyData.new();
+		data.file_idxs.push_back(old_data.file_idx);
+		data.file_idxs.push_back(file_idx);
+		data.localization_count += old_data.localization_count;
+		data.localization_count += localization_count - empty_l10ns;
+		non_unique_keys[key] = data;
+		
+		old_data.file_idx = -1;
+		return;
+	
+	var data = KeyData.new();
+	data.file_idx = file_idx;
+	data.localization_count = localization_count - empty_l10ns;
+	keys[key] = data;
+	return;
 
 
 func clear_cwd_data() -> void:
@@ -75,7 +121,7 @@ func clear_cwd_data() -> void:
 
 func get_csv_files_recursively(handle: DirAccess) -> PackedStringArray:
 	var files := Array(handle.get_files());
-	files = files.filter(csv_filter_predicate);
+	files = files.filter(csv_filter_predicate).map(handle.get_current_dir().path_join);
 	var unprocessed_directories := Array(handle.get_directories());
 	
 	while unprocessed_directories.size() > 0:
@@ -87,7 +133,7 @@ func get_csv_files_recursively(handle: DirAccess) -> PackedStringArray:
 			continue;
 		
 		var new_files := Array(processing_handle.get_files());
-		new_files = new_files.filter(csv_filter_predicate).map(processing.path_join);
+		new_files = new_files.filter(csv_filter_predicate).map(processing_path.path_join);
 		files.append_array(new_files);
 		
 		var new_directories := Array(processing_handle.get_directories());
@@ -107,8 +153,10 @@ class KeyData extends RefCounted:
 
 
 class NonUniqueKeyData extends RefCounted:
-	var file_idxs : Array[int];
+	var file_idxs : PackedInt64Array;
+	var localization_count : int;
 
 
 class LocaleData extends RefCounted:
 	var key_count : int;
+	var missing_files : Array[String];
