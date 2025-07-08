@@ -1,3 +1,7 @@
-[gd_resource type="Theme" format=3 uid="uid://bfjliu6e24osx"]
+[gd_resource type="Theme" load_steps=2 format=3 uid="uid://bfjliu6e24osx"]
+
+[ext_resource type="FontFile" uid="uid://nvt8fp5hgctq" path="res://fonts/ttf/FiraCode-Regular.ttf" id="1_r6qtw"]
 
 [resource]
+LineEdit/fonts/font = ExtResource("1_r6qtw")
+TextEdit/fonts/font = ExtResource("1_r6qtw")

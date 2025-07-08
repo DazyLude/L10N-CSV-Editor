@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://bvomgo8gg2nge"]
+[gd_scene load_steps=3 format=3 uid="uid://bvomgo8gg2nge"]
 
 [ext_resource type="Script" uid="uid://dhtlqy8kdtcrq" path="res://editor_main_scene.gd" id="1_swu64"]
+[ext_resource type="Theme" uid="uid://bfjliu6e24osx" path="res://editor_theme.tres" id="1_y4ppj"]
 
 [node name="EditorMainScene" type="Control"]
 layout_mode = 3
@@ -9,6 +10,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("1_y4ppj")
 script = ExtResource("1_swu64")
 
 [node name="Main" type="GridContainer" parent="."]
@@ -45,29 +47,6 @@ text = "Total string keys: 1000"
 layout_mode = 2
 text = "Strings missing one or more localizations: 0"
 
-[node name="FileInfo" type="HBoxContainer" parent="Main"]
-layout_mode = 2
-
-[node name="AddFile" type="Button" parent="Main/FileInfo"]
-layout_mode = 2
-text = "add file"
-
-[node name="ChangeFile" type="Button" parent="Main/FileInfo"]
-layout_mode = 2
-text = "change file"
-
-[node name="CurrentFile" type="Label" parent="Main/FileInfo"]
-layout_mode = 2
-text = "Current File: none"
-
-[node name="KeyCount" type="Label" parent="Main/FileInfo"]
-layout_mode = 2
-text = "string keys: 10"
-
-[node name="Missing" type="Label" parent="Main/FileInfo"]
-layout_mode = 2
-text = "Strings missing one or more localizations: 0"
-
 [node name="KeySelect" type="HBoxContainer" parent="Main"]
 layout_mode = 2
 size_flags_horizontal = 3
@@ -87,6 +66,28 @@ max_columns = 0
 same_column_width = true
 item_0/text = "item"
 item_1/text = "item2"
+
+[node name="FileInfo" type="HBoxContainer" parent="Main"]
+layout_mode = 2
+
+[node name="AddFile" type="Button" parent="Main/FileInfo"]
+layout_mode = 2
+text = "add file"
+
+[node name="ChangeFile" type="Button" parent="Main/FileInfo"]
+layout_mode = 2
+text = "change file"
+
+[node name="CurrentFile" type="OptionButton" parent="Main/FileInfo"]
+layout_mode = 2
+
+[node name="KeyCount" type="Label" parent="Main/FileInfo"]
+layout_mode = 2
+text = "string keys: 10"
+
+[node name="Missing" type="Label" parent="Main/FileInfo"]
+layout_mode = 2
+text = "Strings missing one or more localizations: 0"
 
 [node name="KeyInfo" type="HBoxContainer" parent="Main"]
 layout_mode = 2

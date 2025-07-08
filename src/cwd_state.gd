@@ -2,6 +2,9 @@ extends RefCounted
 class_name CWDState
 
 
+const PH_LOC_PREFIX := "unknown_locale";
+
+
 ## cwd path
 var cwd_handle : DirAccess;
 ## paths to csv files located in cwd
@@ -19,11 +22,14 @@ var non_unique_keys : Dictionary[String, NonUniqueKeyData] = {};
 #endregion
 
 #region Data Manipulation
-## current working file handle
-var cwf : FileAccess;
-## in-memory representation of lines of the current working file
-var cwf_data : Dictionary[String, PackedStringArray];
+## in-memory representation of open files and their data
+var table_data : Dictionary[int, FileData];
+var changes_stack : Array[FileChange] = [];
 #endregion
+
+
+func open_file(file_idx: int) -> void:
+	pass;
 
 
 func scan_cwd(path: String) -> void:
@@ -39,10 +45,10 @@ func scan_cwd(path: String) -> void:
 func update_cwd_data() -> void:
 	clear_cwd_data();
 	for file in cwd_files:
-		read_file_contents(file);
+		scan_file_contents(file);
 
 
-func read_file_contents(path: String) -> void:
+func scan_file_contents(path: String) -> void:
 	var file_handle := FileAccess.open(path, FileAccess.READ);
 	if file_handle == null:
 		push_error("error when opening file (%s): " % path, error_string(FileAccess.get_open_error()));
@@ -51,17 +57,14 @@ func read_file_contents(path: String) -> void:
 	var header := file_handle.get_csv_line();
 	
 	if header.size() == 0:
-		push_error("malformed header: empty (%s)" % path);
+		push_warning("malformed header: empty (%s). Assuming not a localization file." % path);
 		return;
 	
-	if header[0] != "key":
-		push_error("malformed header: first value not \"key\" (%s)" % path);
-		return;
 	
 	for locale_idx in range(1, header.size()):
 		var locale_key := header[locale_idx];
 		if locale_key == "":
-			push_error("malformed header: locale field empty (%s)" % path);
+			push_warning("malformed header: locale field empty (%s)" % path);
 			continue;
 		
 		register_locale(locale_key, path);
@@ -72,7 +75,7 @@ func read_file_contents(path: String) -> void:
 		if line.size() == 0 or line[0] == "":
 			continue;
 		register_key(line, header.size() - 1, file_idx);
-		
+
 
 func register_locale(locale: String, file: String) -> void:
 	if localizations.has(locale):
@@ -160,3 +163,66 @@ class NonUniqueKeyData extends RefCounted:
 class LocaleData extends RefCounted:
 	var key_count : int;
 	var missing_files : Array[String];
+
+
+class FileData extends RefCounted:
+	var path : String;
+	var data : Dictionary[String, PackedStringArray];
+	var header : PackedStringArray;
+	
+	
+	static func open_at(path: String) -> FileData:
+		var file_data = FileData.new();
+		file_data.path = path;
+		
+		var handle = FileAccess.open(path, FileAccess.READ);
+		file_data.header = handle.get_csv_line().slice(1);
+		
+		while handle.get_position() < handle.get_length():
+			var line = handle.get_csv_line();
+			
+			if line.size() == 0 or line[0] == "":
+				continue;
+			
+			if line.size() < file_data.header.size():
+				line.resize(file_data.header.size())
+			
+			file_data.data[line[0]] = line.slice(1);
+		
+		return file_data;
+	
+	
+	func get_key_localizations(key: String) -> Dictionary[String, String]:
+		var dict : Dictionary[String, String] = {};
+		var key_data = data.get(key, PackedStringArray());
+		
+		var placeholder_locale_n: int = 0;
+		for idx in max(header.size(), key_data.size()):
+			match idx:
+				_ when idx >= header.size(): # missing locale code
+					dict[PH_LOC_PREFIX + "" if placeholder_locale_n == 0 else "_%d" % placeholder_locale_n] = key_data[idx];
+				_ when idx >= key_data.size(): # missing localization for a known locale
+					dict[header[idx]] = "";
+				_:
+					dict[header[idx]] = key_data[idx];
+		
+		return dict;
+	
+	
+	func set_key_localization(key: String, localization: String) -> void:
+		
+
+
+class FileChange extends RefCounted:
+	enum {
+		NEW_FILE,
+		NEW_KEY,
+		CHANGE_KEY,
+		CHANGE_VALUE,
+	}
+	
+	var type: int;
+	var data : PackedStringArray;
+	
+	func _init() -> void:
+		pass;
