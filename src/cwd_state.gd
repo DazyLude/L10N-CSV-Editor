@@ -21,13 +21,48 @@ var non_unique_keys : Dictionary[String, NonUniqueKeyData] = {};
 #region Data Manipulation
 ## in-memory representation of open files and their data
 var table_data : Dictionary[int, FileData];
-var change_stack : Array[FileData];
+var change_stack : Array[int];
 var change_stack_position : int;
 #endregion
 
 
 func open_file(file_idx: int) -> void:
-	pass;
+	table_data[file_idx] = FileData.open_at(cwd_files[file_idx]);
+
+
+func save_file(file_idx: int) -> void:
+	table_data[file_idx].save_current();
+
+
+func get_file_data(file_idx: int) -> FileData:
+	if table_data.has(file_idx):
+		return table_data[file_idx];
+	
+	open_file(file_idx);
+	return table_data[file_idx];
+
+
+func register_change(file_idx: int) -> void:
+	change_stack.push_back(file_idx);
+
+
+func get_key_data(key: String) -> Dictionary[String, String]:
+	var key_data : KeyData = keys.get(key, null);
+	var result : Dictionary[String, String] = {};
+	if key_data == null:
+		return result;
+	
+	if key_data.file_idx != -1:
+		var file_data := get_file_data(key_data.file_idx);
+		if file_data != null:
+			return file_data.get_key_translations(key);
+	else: # key is not contained in a single file
+		for file_idx in non_unique_keys[key].file_idxs:
+			var file_data := get_file_data(key_data.file_idx);
+			if file_data != null:
+				result.merge(file_data.get_key_translations(key));
+	
+	return result;
 
 
 func scan_cwd(path: String) -> void:
@@ -94,26 +129,27 @@ func register_key(line: PackedStringArray, localization_count: int, file_idx: in
 	for column_idx in comment_columns:
 		pass;
 	
-	for comment in comment_columns:
-		line.remove_at(comment);
+	var empty_comments : int = 0;
+	for comment_idx in comment_columns:
+		if line[comment_idx] == "":
+			empty_comments += 1;
 	
-	var line_size = line.size() - 1;
-	var empty_localizations = line.count("");
+	var empty_localizations = line.count("") - empty_comments;
 	
 	if non_unique_keys.has(key):
-		var data := non_unique_keys[key];
-		data.file_idxs.push_back(file_idx);
-		data.localization_count += localization_count - empty_localizations;
+		var non_unique_data := non_unique_keys[key];
+		non_unique_data.file_idxs.push_back(file_idx);
+		non_unique_data.localization_count += localization_count - empty_localizations;
 		return;
 	
 	if keys.has(key):
 		var old_data = keys[key];
-		var data = NonUniqueKeyData.new();
-		data.file_idxs.push_back(old_data.file_idx);
-		data.file_idxs.push_back(file_idx);
-		data.localization_count += old_data.localization_count;
-		data.localization_count += localization_count - empty_localizations;
-		non_unique_keys[key] = data;
+		var non_unique_data = NonUniqueKeyData.new();
+		non_unique_data.file_idxs.push_back(old_data.file_idx);
+		non_unique_data.file_idxs.push_back(file_idx);
+		non_unique_data.localization_count += old_data.localization_count;
+		non_unique_data.localization_count += localization_count - empty_localizations;
+		non_unique_keys[key] = non_unique_data;
 		
 		old_data.file_idx = -1;
 		return;

@@ -19,22 +19,36 @@ var data := CWDState.new();
 ## The comma (,) is a special symbol. To use it: don't.
 var filter_data : FilterData = FilterData.new(data);
 
+var selected_key : String;
+var selected_key_data : Dictionary[String, String];
+
 
 func _ready() -> void:
 	PersistentData.load_fom_disk();
 	if PersistentData.last_working_directory != "":
-		data.scan_cwd(PersistentData.last_working_directory);
-		update_cwd_data_display();
-		refresh_list_of_keys();
+		folder_change_util(PersistentData.last_working_directory);
 	
 	$Main/DirInfo/ChangeDirButton.pressed.connect(change_folder);
 	$Main/KeySelect/KeyFilter.text_submitted.connect(on_filter_string_submit);
+	$Main/KeySelect/KeyList.item_selected.connect(display_key_translations);
+	$Main/LocalizationInfo/Locale.item_selected.connect(update_translation);
+	$Main/LocalizationInfo/OtherLocale.item_selected.connect(update_translation);
+	$Main/KeyInfo/DisplayOther.toggled.connect(display_other);
+	display_other($Main/KeyInfo/DisplayOther.is_pressed())
 
 
 func _notification(what: int) -> void:
 	match what:
 		NOTIFICATION_WM_CLOSE_REQUEST:
 			PersistentData.save();
+
+
+func _shortcut_input(event: InputEvent) -> void:
+	if event.is_action(&"ui_undo"):
+		pass;
+	
+	if event.is_action(&"ui_redo"):
+		pass;
 
 
 func on_filter_string_submit(query: String) -> void:
@@ -83,78 +97,46 @@ func cancel_change_folder(dialog: FileDialog) -> void:
 
 func finish_change_folder(dir: String, dialog: FileDialog) -> void:
 	PersistentData.last_working_directory = dir;
-	data.scan_cwd(dir);
-	
-	update_cwd_data_display();
-	refresh_list_of_keys();
-	
+	folder_change_util(dir)
 	cancel_change_folder(dialog);
 
 
-class FilterData:
-	var key_filters : Array[String] = [];
-	var file_idxs : Array[int] = [];
-	var is_case_sensitive : bool = false;
-	var cwd_state_ref : CWDState = null;
+func folder_change_util(path: String) -> void:
+	data.scan_cwd(path);
+	update_cwd_data_display();
+	refresh_list_of_keys();
+	update_localization_select();
+
+
+func display_key_translations(key_idx: int) -> void:
+	selected_key = $Main/KeySelect/KeyList.get_item_text(key_idx);
+	selected_key_data = data.get_key_data(selected_key);
 	
+	if $Main/LocalizationInfo/Locale.selected != -1 or $Main/LocalizationInfo/OtherLocale.selected != -1:
+		update_translation();
+
+
+func update_translation(_idx: int = -1) -> void:
+	var selected_main = $Main/LocalizationInfo/Locale.selected;
+	if selected_main != -1:
+		var locale = $Main/LocalizationInfo/Locale.get_item_text(selected_main);
+		$Main/LocalizationInfo/Translation.text = selected_key_data.get(locale, "");
 	
-	func _init(cwd_state_reference: CWDState) -> void:
-		self.cwd_state_ref = cwd_state_reference;
+	var selected_other = $Main/LocalizationInfo/OtherLocale.selected;
+	if selected_other != -1:
+		var locale = $Main/LocalizationInfo/OtherLocale.get_item_text(selected_other);
+		$Main/LocalizationInfo/OtherTranslation.text = selected_key_data.get(locale, "");
+
+
+func update_localization_select() -> void:
+	$Main/LocalizationInfo/Locale.clear();
+	$Main/LocalizationInfo/OtherLocale.clear();
 	
-	
-	static func from_query(filter_query: String, data: CWDState) -> FilterData:
-		var new_filter_data = FilterData.new(data);
-		
-		var filter_settings = filter_query.split(",", false);
-		var file_filters : Array = [];
-		
-		for setting in filter_settings:
-			match setting:
-				_ when setting.begins_with("key:"):
-					new_filter_data.key_filters.push_back("*%s*" % setting.trim_prefix("key:"));
-				_ when setting.begins_with("file:"):
-					file_filters.push_back("*%s*" % setting.trim_prefix("file:"));
-				"case":
-					new_filter_data.is_case_sensitive = true;
-				_:
-					new_filter_data.key_filters.push_back("*%s*" % setting);
-		
-		if not new_filter_data.is_case_sensitive:
-			file_filters = file_filters.map(func(s: String): return s.to_lower());
-			var cwd_files_temp = Array(data.cwd_files).map(func(s: String): return s.to_lower());
-			var file_idxs_temp = file_filters\
-				.map(cwd_files_temp.find)\
-				.filter(func(idx: int): return idx != -1);
-			new_filter_data.file_idxs = Array(file_idxs_temp, TYPE_INT, &"", null);
-		else:
-			var file_idxs_temp = file_filters\
-				.map(data.cwd_files.find)\
-				.filter(func(idx: int): return idx != -1);
-			new_filter_data.file_idxs = Array(file_idxs_temp, TYPE_INT, &"", null);
-		
-		return new_filter_data;
-	
-	
-	func matches(key: String) -> bool:
-		var key_data : CWDState.KeyData = self.cwd_state_ref.keys.get(key, null);
-		if key_data == null:
-			push_error("invalid key in the key list: %s" % key);
-			return false;
-		
-		if not file_idxs.is_empty():
-			var file_chk : bool;
-			
-			if key_data.file_idx != -1:
-				file_chk = file_idxs.has(key_data.file_idx);
-			else:
-				var actual_data = self.cwd_state_ref.non_unique_keys[key];
-				file_chk = file_idxs.any(actual_data.file_idxs.has);
-		
-			if not file_chk:
-				return false;
-		
-		if not key_filters.is_empty():
-			if not key_filters.any(key.match if self.is_case_sensitive else key.matchn):
-				return false;
-		
-		return true;
+	for locale in data.localizations:
+		$Main/LocalizationInfo/Locale.add_item(locale);
+		$Main/LocalizationInfo/OtherLocale.add_item(locale);
+
+
+func display_other(y: bool) -> void:
+	$Main/LocalizationInfo/OtherLocale.visible = y;
+	$Main/LocalizationInfo/OtherTranslation.visible = y;

@@ -57,7 +57,7 @@ func get_backup_file_path() -> String:
 	
 	var dir_handle = DirAccess.open(BACKUP_LOCATION);
 	if dir_handle == null:
-		push_error("error when looking for backup directory (%s): " % path, error_string(dir_handle.get_open_error()));
+		push_error("error when looking for backup directory (%s): " % path, error_string(DirAccess.get_open_error()));
 		return "";
 	
 	var files = dir_handle.get_files();
@@ -91,14 +91,14 @@ func make_filename_unique(file : String, other_files : PackedStringArray) -> Str
 func get_backup_owner_path(backup_path: String) -> String:
 	var file_handle = FileAccess.open(backup_path, FileAccess.READ);
 	if file_handle == null:
-		push_error("error when looking for backup file (%s): " % path, error_string(file_handle.get_open_error()));
+		push_error("error when looking for backup file (%s): " % path, error_string(FileAccess.get_open_error()));
 		return "";
-	var header := file_handle.get_csv_line();
+	var file_header := file_handle.get_csv_line();
 	file_handle.close();
-	if header.size() == 0:
+	if file_header.size() == 0:
 		return "";
 	
-	return header[0];
+	return file_header[0];
 
 
 ## backs up changes between on_disk_position and changes_position
@@ -106,8 +106,8 @@ func backup_changes() -> Error:
 	var backup_path = get_backup_file_path();
 	var handle = FileAccess.open(backup_path, FileAccess.WRITE);
 	if handle == null:
-		push_error("error when saving backup file (%s): " % path, error_string(handle.get_open_error()));
-		return handle.get_open_error();
+		push_error("error when saving backup file (%s): " % path, error_string(FileAccess.get_open_error()));
+		return FileAccess.get_open_error();
 	
 	handle.store_csv_line(PackedStringArray([path, "%s" % on_disk_data_hash]));
 	for i in range(on_disk_position, changes_position):
@@ -127,11 +127,11 @@ func restore_changes() -> Error:
 	
 	var handle = FileAccess.open(backup_path, FileAccess.READ);
 	if handle == null:
-		push_error("error when loading backup file (%s): " % path, error_string(handle.get_open_error()));
-		return handle.get_open_error();
+		push_error("error when loading backup file (%s): " % path, error_string(FileAccess.get_open_error()));
+		return FileAccess.get_open_error();
 	
-	var header = handle.get_csv_line();
-	var data_hash = header[1];
+	var backup_header = handle.get_csv_line();
+	var data_hash = backup_header[1];
 	if int(data_hash) != hash(data):
 		push_error("backup out of sync with file data, truncating");
 		handle.close();
@@ -152,16 +152,16 @@ func restore_changes() -> Error:
 
 
 ## returns null if the file exists already or when failed creating one
-static func create_file(path: String) -> FileData:
+static func create_file(file_path: String) -> FileData:
 	var file_data = FileData.new();
-	file_data.path = path;
+	file_data.path = file_path;
 	
-	if FileAccess.file_exists(path):
+	if FileAccess.file_exists(file_path):
 		return null;
 	
-	var handle = FileAccess.open(path, FileAccess.WRITE);
+	var handle = FileAccess.open(file_path, FileAccess.WRITE);
 	if handle == null:
-		push_error("error when creating new file (%s): " % path, error_string(handle.get_open_error()));
+		push_error("error when creating new file (%s): " % file_path, error_string(FileAccess.get_open_error()));
 		return null;
 	
 	var change = FileChange.new(FileChange.FILE_CREATED, PackedStringArray());
@@ -170,21 +170,21 @@ static func create_file(path: String) -> FileData:
 	return file_data;
 
 
-func un_create_file(path: String) -> void:
+func un_create_file(_change: FileChange) -> void:
 	marked_for_deletion = true;
 
 
-func re_create_file(path: String) -> void:
+func re_create_file(_change: FileChange) -> void:
 	marked_for_deletion = false;
 
 
-static func open_at(path: String) -> FileData:
+static func open_at(file_path: String) -> FileData:
 	var file_data = FileData.new();
-	file_data.path = path;
+	file_data.path = file_path;
 	
-	var handle = FileAccess.open(path, FileAccess.READ);
+	var handle = FileAccess.open(file_path, FileAccess.READ);
 	if handle == null:
-		push_error("error when opening file (%s): " % path, error_string(handle.get_open_error()));
+		push_error("error when opening file (%s): " % file_path, error_string(FileAccess.get_open_error()));
 		return null;
 	
 	file_data.header = handle.get_csv_line().slice(1);
@@ -215,7 +215,7 @@ func save_current() -> Error:
 	
 	var handle = FileAccess.open(path, FileAccess.WRITE);
 	if handle == null:
-		push_error("error when opening file (%s): " % path, error_string(handle.get_open_error()));
+		push_error("error when opening file (%s): " % path, error_string(FileAccess.get_open_error()));
 		return FileAccess.get_open_error();
 	
 	on_disk_position = changes_position;

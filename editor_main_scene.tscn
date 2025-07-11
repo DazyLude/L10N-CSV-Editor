@@ -100,7 +100,7 @@ text = "add new key"
 layout_mode = 2
 text = "add new localization"
 
-[node name="CheckBox" type="CheckBox" parent="Main/KeyInfo"]
+[node name="DisplayOther" type="CheckBox" parent="Main/KeyInfo"]
 layout_mode = 2
 text = "Edit side by side"
 
@@ -122,7 +122,7 @@ text = "warnings: none"
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="LocalizationSelect" type="OptionButton" parent="Main/LocalizationInfo"]
+[node name="Locale" type="OptionButton" parent="Main/LocalizationInfo"]
 layout_mode = 2
 size_flags_vertical = 0
 selected = 0
@@ -132,13 +132,17 @@ popup/item_0/id = 0
 popup/item_1/text = "ru"
 popup/item_1/id = 1
 
-[node name="TextEdit" type="TextEdit" parent="Main/LocalizationInfo"]
+[node name="Translation" type="TextEdit" parent="Main/LocalizationInfo"]
 custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "edit text"
+wrap_mode = 1
+draw_control_chars = true
+draw_tabs = true
+draw_spaces = true
 
-[node name="OtherLocalization" type="OptionButton" parent="Main/LocalizationInfo"]
+[node name="OtherLocale" type="OptionButton" parent="Main/LocalizationInfo"]
 layout_mode = 2
 size_flags_vertical = 0
 selected = 0
@@ -148,8 +152,12 @@ popup/item_0/id = 0
 popup/item_1/text = "ru"
 popup/item_1/id = 1
 
-[node name="OtherEdit" type="TextEdit" parent="Main/LocalizationInfo"]
+[node name="OtherTranslation" type="TextEdit" parent="Main/LocalizationInfo"]
 custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "edit text"
+wrap_mode = 1
+draw_control_chars = true
+draw_tabs = true
+draw_spaces = true
