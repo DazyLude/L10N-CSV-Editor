@@ -113,7 +113,20 @@ func display_key_translations(key_idx: int) -> void:
 	selected_key_data = data.get_key_data(selected_key);
 	
 	if $Main/LocalizationInfo/Locale.selected != -1 or $Main/LocalizationInfo/OtherLocale.selected != -1:
-		update_translation();
+		update_translation_data();
+
+
+func update_translation_data(_idx: int = -1) -> void:
+	update_translation();
+	
+	var locale_check = {};
+	locale_check.merge(selected_key_data);
+	locale_check.merge(data.localizations);
+	
+	if locale_check.keys().size() > data.localizations.keys().size():
+		update_localization_select_with_key_data();
+	elif $Main/LocalizationInfo/Locale.item_count > locale_check.keys().size():
+		update_localization_select();
 
 
 func update_translation(_idx: int = -1) -> void:
@@ -133,6 +146,19 @@ func update_localization_select() -> void:
 	$Main/LocalizationInfo/OtherLocale.clear();
 	
 	for locale in data.localizations:
+		$Main/LocalizationInfo/Locale.add_item(locale);
+		$Main/LocalizationInfo/OtherLocale.add_item(locale);
+
+
+func update_localization_select_with_key_data() -> void:
+	$Main/LocalizationInfo/Locale.clear();
+	$Main/LocalizationInfo/OtherLocale.clear();
+	
+	var locale_check = {};
+	locale_check.merge(selected_key_data);
+	locale_check.merge(data.localizations);
+	
+	for locale in locale_check.keys():
 		$Main/LocalizationInfo/Locale.add_item(locale);
 		$Main/LocalizationInfo/OtherLocale.add_item(locale);
 

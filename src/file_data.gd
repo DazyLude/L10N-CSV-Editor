@@ -271,7 +271,7 @@ func get_key_translations(key: String) -> Dictionary[String, String]:
 	var placeholder_locale_n: int = 0;
 	for idx in max(header.size(), key_data.size()):
 		match idx:
-			_ when idx >= header.size(): # missing locale code
+			_ when idx >= header.size() or header[idx] == "": # missing locale code
 				dict[PH_LOC_PREFIX + "" if placeholder_locale_n == 0 else "_%d" % placeholder_locale_n] = key_data[idx];
 			_ when idx >= key_data.size(): # missing localization for a known locale
 				dict[header[idx]] = "";
