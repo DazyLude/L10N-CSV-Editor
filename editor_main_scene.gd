@@ -4,19 +4,7 @@ extends Control
 var block_input : bool = false;
 var data := CWDState.new();
 
-## The following keywords can be used, separated by comma:[br]
-## 1) key:{string} (used by default): filters keys by "globbing" with the provided string.[br]
-##    Example: key:FOO and FOO produce the same result.[br]
-## 2) case: turns case sensitive search on.[br]
-##    Example: FOO,case will not match a key "fooBAR".[br]
-## 3) file:{string} : limits the filter to files with matching names (paths). Works in a similar fashion to key matching.[br]
-##    Example: file:menu,case will show keys only in the files that have "menu" in name.[br]
-## [br]
-## Different keywords combine multiplicatevely:
-## file:FOO,key:CHUNGUS will show only keys containing CHUNGUS in files with FOO in their name.[br]
-## Similar keywords combine additevely:
-## key:FIZZ,key:BUZZ will display keys with FIZZ and/or BUZZ in them.[br]
-## The comma (,) is a special symbol. To use it: don't.
+
 var filter_data : FilterData = FilterData.new(data);
 
 var selected_key : String;
@@ -34,7 +22,7 @@ func _ready() -> void:
 	$Main/LocalizationInfo/Locale.item_selected.connect(update_translation);
 	$Main/LocalizationInfo/OtherLocale.item_selected.connect(update_translation);
 	$Main/KeyInfo/DisplayOther.toggled.connect(display_other);
-	display_other($Main/KeyInfo/DisplayOther.is_pressed())
+	display_other($Main/KeyInfo/DisplayOther.is_pressed());
 
 
 func _notification(what: int) -> void:
@@ -106,6 +94,9 @@ func folder_change_util(path: String) -> void:
 	update_cwd_data_display();
 	refresh_list_of_keys();
 	update_localization_select();
+	var dupes = data.get_single_file_dupes();
+	if not dupes.is_empty():
+		
 
 
 func display_key_translations(key_idx: int) -> void:
@@ -142,15 +133,26 @@ func update_translation(_idx: int = -1) -> void:
 
 
 func update_localization_select() -> void:
+	var temp_idx : int = $Main/LocalizationInfo/Locale.selected;
+	var temp_idx_other : int = $Main/LocalizationInfo/OtherLocale.selected;
+	
 	$Main/LocalizationInfo/Locale.clear();
 	$Main/LocalizationInfo/OtherLocale.clear();
 	
 	for locale in data.localizations:
 		$Main/LocalizationInfo/Locale.add_item(locale);
 		$Main/LocalizationInfo/OtherLocale.add_item(locale);
+	
+	if temp_idx < $Main/LocalizationInfo/Locale.item_count:
+		$Main/LocalizationInfo/Locale.select(temp_idx);
+	if temp_idx_other < $Main/LocalizationInfo/OtherLocale.item_count:
+		$Main/LocalizationInfo/OtherLocale.select(temp_idx_other);
 
 
 func update_localization_select_with_key_data() -> void:
+	var temp_idx : int = $Main/LocalizationInfo/Locale.selected;
+	var temp_idx_other : int = $Main/LocalizationInfo/OtherLocale.selected;
+	
 	$Main/LocalizationInfo/Locale.clear();
 	$Main/LocalizationInfo/OtherLocale.clear();
 	
@@ -161,6 +163,11 @@ func update_localization_select_with_key_data() -> void:
 	for locale in locale_check.keys():
 		$Main/LocalizationInfo/Locale.add_item(locale);
 		$Main/LocalizationInfo/OtherLocale.add_item(locale);
+	
+	if temp_idx < $Main/LocalizationInfo/Locale.item_count:
+		$Main/LocalizationInfo/Locale.select(temp_idx);
+	if temp_idx_other < $Main/LocalizationInfo/OtherLocale.item_count:
+		$Main/LocalizationInfo/OtherLocale.select(temp_idx_other);
 
 
 func display_other(y: bool) -> void:

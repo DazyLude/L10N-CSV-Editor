@@ -8,32 +8,36 @@ const BACKUP_LOCATION := "user://backups";
 
 
 var undo_methods : Dictionary[int, Callable] = {
-	FileChange.FILE_CREATED: Callable(),
+	FileChange.FILE_CREATED: un_create_file,
 	FileChange.FILE_DELETED: Callable(),
 	FileChange.FILE_MOVED: Callable(),
 	
 	FileChange.NEW_KEY: un_add_key,
-	FileChange.NEW_LOCALE: Callable(),
+	FileChange.NEW_LOCALE: un_add_locale,
 	
 	FileChange.CHANGE_KEY: un_change_key,
 	FileChange.CHANGE_VALUE: un_change_translation,
+	FileChange.CHANGE_LOCALE: un_change_locale,
 	
 	FileChange.REMOVE_KEY: un_remove_key,
-	FileChange.REMOVE_LOCALE: Callable(),
+	FileChange.REMOVE_LOCALE: un_remove_locale,
 }
+
+
 var redo_methods : Dictionary[int, Callable] = {
-	FileChange.FILE_CREATED: Callable(),
+	FileChange.FILE_CREATED: re_create_file,
 	FileChange.FILE_DELETED: Callable(),
 	FileChange.FILE_MOVED: Callable(),
 	
 	FileChange.NEW_KEY: re_add_key,
-	FileChange.NEW_LOCALE: Callable(),
+	FileChange.NEW_LOCALE: re_add_locale,
 	
 	FileChange.CHANGE_KEY: re_change_key,
 	FileChange.CHANGE_VALUE: re_change_translation,
+	FileChange.CHANGE_LOCALE: re_change_locale,
 	
 	FileChange.REMOVE_KEY: re_remove_key,
-	FileChange.REMOVE_LOCALE: Callable(),
+	FileChange.REMOVE_LOCALE: re_remove_locale,
 }
 
 
@@ -49,6 +53,61 @@ var on_disk_data_hash : int = 0;
 
 var marked_for_deletion : bool = false;
 var marked_for_move : String = "";
+
+
+static func check_changes_backup_exists(file_path: String) -> bool:
+	if file_path == "":
+		return false;
+	
+	if not DirAccess.dir_exists_absolute(BACKUP_LOCATION):
+		DirAccess.make_dir_absolute(BACKUP_LOCATION);
+	
+	var dir_handle = DirAccess.open(BACKUP_LOCATION);
+	if dir_handle == null:
+		push_error("error when looking for backup directory (static): ", error_string(DirAccess.get_open_error()));
+		return false;
+	
+	var files = dir_handle.get_files();
+	for file in files:
+		if get_backup_owner_path(file) == file_path:
+			return true;
+	
+	return false;
+
+
+static func get_backup_change_hash(backup_path: String) -> int:
+	if not FileAccess.file_exists(backup_path):
+		return 0;
+	
+	var file_handle = FileAccess.open(backup_path, FileAccess.READ);
+	if file_handle == null:
+		push_error("error when looking for backup file (static): ", error_string(FileAccess.get_open_error()));
+		return 0;
+	
+	var file_header := file_handle.get_csv_line();
+	file_handle.close();
+	
+	if file_header.size() <= 2 or not file_header[2].is_valid_int():
+		return 0;
+	
+	return int(file_header[2]);
+
+
+static func get_backup_owner_path(backup_path: String) -> String:
+	if not FileAccess.file_exists(backup_path):
+		return "";
+	
+	var file_handle = FileAccess.open(backup_path, FileAccess.READ);
+	if file_handle == null:
+		push_error("error when looking for backup file (static): ", error_string(FileAccess.get_open_error()));
+		return "";
+	
+	var file_header := file_handle.get_csv_line();
+	file_handle.close();
+	if file_header.size() == 0:
+		return "";
+	
+	return file_header[0];
 
 
 func get_backup_file_path() -> String:
@@ -88,28 +147,27 @@ func make_filename_unique(file : String, other_files : PackedStringArray) -> Str
 	return temp_file_name;
 
 
-func get_backup_owner_path(backup_path: String) -> String:
-	var file_handle = FileAccess.open(backup_path, FileAccess.READ);
-	if file_handle == null:
-		push_error("error when looking for backup file (%s): " % path, error_string(FileAccess.get_open_error()));
-		return "";
-	var file_header := file_handle.get_csv_line();
-	file_handle.close();
-	if file_header.size() == 0:
-		return "";
-	
-	return file_header[0];
-
-
 ## backs up changes between on_disk_position and changes_position
 func backup_changes() -> Error:
 	var backup_path = get_backup_file_path();
+	
+	var changes_count = changes_position - on_disk_position;
+	if changes_count <= 0: # nothing to backup, removing existing file.
+		return DirAccess.remove_absolute(backup_path);
+	
+	var change_data = changes.slice(on_disk_position, changes_position);
+	var change_data_hash = hash(change_data);
+	
+	if change_data_hash == get_backup_change_hash(backup_path): # backup already done, no need to rewrite
+		return OK;
+	
 	var handle = FileAccess.open(backup_path, FileAccess.WRITE);
 	if handle == null:
 		push_error("error when saving backup file (%s): " % path, error_string(FileAccess.get_open_error()));
 		return FileAccess.get_open_error();
 	
-	handle.store_csv_line(PackedStringArray([path, "%s" % on_disk_data_hash]));
+	handle.store_csv_line(PackedStringArray([path, "%s" % on_disk_data_hash, "%s" % change_data_hash]));
+	
 	for i in range(on_disk_position, changes_position):
 		var change := changes[i];
 		var stored_array := PackedStringArray([change.type]);
@@ -132,10 +190,12 @@ func restore_changes() -> Error:
 	
 	var backup_header = handle.get_csv_line();
 	var data_hash = backup_header[1];
-	if int(data_hash) != hash(data):
-		push_error("backup out of sync with file data, truncating");
+	if not data_hash.is_valid_int() or int(data_hash) != hash(data):
+		push_error("backup out of sync with file data (%s), truncating" % path);
 		handle.close();
+		changes_position = on_disk_position;
 		backup_changes();
+		return OK;
 	
 	while handle.get_position() < handle.get_length():
 		var line = handle.get_csv_line();
@@ -237,8 +297,8 @@ func save_current() -> Error:
 
 
 func register_change(change: FileChange) -> void:
-	changes.resize(changes_position);
-	changes.push_back(change);
+	changes.resize(changes_position + 1);
+	changes[changes_position] = change;
 	changes_position += 1;
 
 
@@ -285,7 +345,10 @@ func get_translation(key: String, locale: String) -> String:
 	var locale_idx = header.find(locale);
 	if locale_idx == -1:
 		return "";
-	
+	return _get_translation_by_idx(key, locale_idx);
+
+
+func _get_translation_by_idx(key: String, locale_idx: int) -> String:
 	var translations = data.get(key, PackedStringArray());
 	if locale_idx >= translations.size():
 		return "";
@@ -415,42 +478,93 @@ func re_remove_key(change: FileChange) -> void:
 	data.erase(key);
 
 
-func add_locale() -> void:
-	pass;
-
-
-func remove_locale() -> void:
-	pass;
-
-
-func delete_file() -> void:
-	pass;
-
-
-func move_file() -> void:
-	pass;
-
-
-class FileChange extends RefCounted:
-	enum {
-		FILE_CREATED,
-		FILE_DELETED,
-		FILE_MOVED,
-		
-		NEW_KEY,
-		NEW_LOCALE,
-		
-		CHANGE_KEY,
-		CHANGE_VALUE,
-		
-		REMOVE_KEY,
-		REMOVE_LOCALE,
-	}
+## returns FAILED id the file already has this locale
+func add_locale(locale: String) -> Error:
+	if header.has(locale):
+		return FAILED;
 	
-	var type: int;
-	var data : PackedStringArray;
+	var change = FileChange.new(FileChange.NEW_LOCALE, PackedStringArray([locale]));
+	register_change(change);
+	header.push_back(locale);
 	
+	return OK;
+
+
+func un_add_locale(change: FileChange) -> void:
+	var locale = change.data[0];
+	header.remove_at(header.find(locale));
+
+
+func re_add_locale(change: FileChange) -> void:
+	var locale = change.data[0];
+	header.push_back(locale);
+
+
+## returns ERR_INVALID_DATA if removed locale has associated non "" keys [br]
+## returns ERR_DOES_NOT_EXIST if locale is not present
+func remove_locale(locale: String) -> Error:
+	var locale_idx = header.find(locale);
+	if locale_idx == -1:
+		return ERR_DOES_NOT_EXIST;
 	
-	func _init(type_i: int, data_i: PackedStringArray) -> void:
-		type = type_i;
-		data = data_i;
+	for key in data:
+		if _get_translation_by_idx(key, locale_idx) != "":
+			return ERR_INVALID_DATA;
+	
+	var change := FileChange.new(FileChange.REMOVE_LOCALE, PackedStringArray([locale]));
+	register_change(change);
+	re_remove_locale(change);
+	
+	return OK;
+
+
+func un_remove_locale(change: FileChange) -> void:
+	var locale = change.data[0];
+	header.push_back(locale);
+
+
+func re_remove_locale(change: FileChange) -> void:
+	var locale = change.data[0];
+	var locale_idx = header.find(locale);
+	
+	for key in data:
+		data[key].remove_at(locale_idx);
+	
+	header.remove_at(locale_idx);
+
+
+## returns FAILED if "from" is not in the file header
+func change_locale(from: String, to: String) -> Error:
+	var locale_idx = header.find(from);
+	if locale_idx == -1:
+		return FAILED;
+	
+	var change := FileChange.new(FileChange.CHANGE_LOCALE, PackedStringArray([from, to]));
+	register_change(change);
+	header[locale_idx] = to;
+	
+	return OK;
+
+
+func un_change_locale(change: FileChange) -> void:
+	var from = change.data[0];
+	var to = change.data[1];
+	
+	var locale_idx = header.find(to);
+	header[locale_idx] = from;
+
+
+func re_change_locale(change: FileChange) -> void:
+	var from = change.data[0];
+	var to = change.data[1];
+	
+	var locale_idx = header.find(from);
+	header[locale_idx] = to;
+
+
+func delete_file(_change: FileChange) -> Error:
+	return OK;
+
+
+func move_file(_change: FileChange) -> Error:
+	return OK;
