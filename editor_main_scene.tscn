@@ -118,21 +118,28 @@ placeholder_text = "key edit"
 layout_mode = 2
 text = "warnings: none"
 
-[node name="LocalizationInfo" type="HBoxContainer" parent="Main"]
+[node name="Edit" type="TabContainer" parent="Main"]
 layout_mode = 2
 size_flags_vertical = 3
+current_tab = 0
 
-[node name="Locale" type="OptionButton" parent="Main/LocalizationInfo"]
+[node name="Localization" type="HBoxContainer" parent="Main/Edit"]
+layout_mode = 2
+size_flags_vertical = 3
+metadata/_tab_index = 0
+
+[node name="Locale" type="OptionButton" parent="Main/Edit/Localization"]
 layout_mode = 2
 size_flags_vertical = 0
 selected = 0
+fit_to_longest_item = false
 item_count = 2
 popup/item_0/text = "en"
 popup/item_0/id = 0
 popup/item_1/text = "ru"
 popup/item_1/id = 1
 
-[node name="Translation" type="TextEdit" parent="Main/LocalizationInfo"]
+[node name="Translation" type="TextEdit" parent="Main/Edit/Localization"]
 custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -142,17 +149,18 @@ draw_control_chars = true
 draw_tabs = true
 draw_spaces = true
 
-[node name="OtherLocale" type="OptionButton" parent="Main/LocalizationInfo"]
+[node name="OtherLocale" type="OptionButton" parent="Main/Edit/Localization"]
 layout_mode = 2
 size_flags_vertical = 0
 selected = 0
+fit_to_longest_item = false
 item_count = 2
 popup/item_0/text = "en"
 popup/item_0/id = 0
 popup/item_1/text = "ru"
 popup/item_1/id = 1
 
-[node name="OtherTranslation" type="TextEdit" parent="Main/LocalizationInfo"]
+[node name="OtherTranslation" type="TextEdit" parent="Main/Edit/Localization"]
 custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -161,3 +169,46 @@ wrap_mode = 1
 draw_control_chars = true
 draw_tabs = true
 draw_spaces = true
+
+[node name="Files" type="HBoxContainer" parent="Main/Edit"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+metadata/_tab_index = 1
+
+[node name="Info" type="VBoxContainer" parent="Main/Edit/Files"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+
+[node name="Provided" type="Label" parent="Main/Edit/Files/Info"]
+layout_mode = 2
+text = "present locales: en, ru"
+autowrap_mode = 3
+
+[node name="Missing" type="Label" parent="Main/Edit/Files/Info"]
+layout_mode = 2
+text = "missing: none"
+autowrap_mode = 3
+
+[node name="FileList" type="ItemList" parent="Main/Edit/Files"]
+custom_minimum_size = Vector2(0, 150)
+layout_mode = 2
+size_flags_horizontal = 3
+item_count = 2
+max_columns = 0
+same_column_width = true
+item_0/text = "item"
+item_1/text = "item2"
+
+[node name="Messages" type="ScrollContainer" parent="Main"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+vertical_scroll_mode = 0
+
+[node name="MessagesContainer" type="HBoxContainer" parent="Main/Messages"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 50
+alignment = 2

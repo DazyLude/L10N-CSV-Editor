@@ -19,13 +19,14 @@ var keys : Dictionary[String, KeyData] = {};
 var non_unique_keys : Dictionary[String, NonUniqueKeyData] = {};
 ## list of keys with possible key collisions, aka multiple files containing key + locale combination.
 var possible_collisions : Dictionary[String, PackedInt64Array] = {};
+var empty_localizations : Dictionary[int, int];
 #endregion
 
 #region Data Manipulation
 ## in-memory representation of open files and their data
 var table_data : Dictionary[int, FileData];
-var change_stack : Array[CompositeChange];
-var change_stack_position : int;
+var changes : Array[CompositeChange];
+var changes_position : int;
 #endregion
 
 
@@ -46,7 +47,61 @@ func get_file_data(file_idx: int) -> FileData:
 
 
 func register_change(change: CompositeChange) -> void:
-	change_stack.push_back(change);
+	changes.resize(changes_position + 1);
+	changes[changes_position] = change;
+	changes_position += 1;
+
+
+## returns FAILED if at the top of changes stack
+func redo() -> Error:
+	if changes_position >= changes.size():
+		return FAILED;
+	
+	var change = changes[changes_position];
+	
+	#redo
+	for file_idx in change.changes:
+		var file_data = get_file_data(file_idx);
+		for _i in range(change.changes[file_idx]):
+			if file_data.redo() != OK:
+				push_error("less redoable actions than expected");
+				break; # will fail only if undo stack bottom is reached (in theory)
+	
+	changes_position += 1;
+	return OK;
+
+
+## returns FAILED if at the bottom of changes stack
+func undo() -> Error:
+	if changes_position <= 0:
+		return FAILED;
+	
+	changes_position -= 1;
+	var change = changes[changes_position];
+	
+	#undo
+	return undo_temp(change);
+
+
+func undo_temp(change: CompositeChange) -> Error:
+	for file_idx in change.changes:
+		var file_data = get_file_data(file_idx);
+		for _i in range(change.changes[file_idx]):
+			if file_data.undo() != OK:
+				push_error("less undoable actions than expected in filedata for %s" % cwd_files[file_idx]);
+				break; # will fail only if undo stack bottom is reached (in theory)
+	
+	return OK;
+
+
+func backup_changes() -> void:
+	for file_data in table_data.values().filter(func(v): return v != null):
+		file_data.backup_changes();
+
+
+func save_changes() -> void:
+	for file_data in table_data.values().filter(func(v): return v != null):
+		file_data.save_current();
 
 
 ## adds localization key to the currently opened file [br]
@@ -62,7 +117,7 @@ func add_new_key(key: String) -> Error:
 	register_key(PackedStringArray(), 0, current_file_idx, []);
 	var file_data = get_file_data(current_file_idx);
 	if file_data.add_key(key) != OK:
-		printerr("key was not registered, but was present in the current file");
+		push_error("key was not registered, but was present in the current file");
 		return FAILED;
 	
 	register_change(CompositeChange.create_new(current_file_idx));
@@ -73,14 +128,120 @@ func add_new_key(key: String) -> Error:
 ## edits key in a file if it already exists (is not "" or file with key+locale combination exists)
 ## returns ERR_INVALID_DATA if key is one of the keys that have possible key collisions.
 ## returns ERR_CANT_RESOLVE if a file with key+locale doesn't exist.
-func change_translation(key: String, new_value: String) -> Error:
+## returns FAILED if file_data method failed for whatever reason
+func change_translation(key: String, locale: String, new_value: String) -> Error:
+	if possible_collisions.has(key):
+		return ERR_INVALID_DATA;
+	
+	var locale_data := localizations[locale];
+	var file_idx := keys[key].file_idx;
+	
+	if file_idx == -1: # scan containing files and get one with locale present
+		var file_idxs := non_unique_keys[key].file_idxs;
+		for i_file_idx in file_idxs:
+			if locale_data.found_in.has(i_file_idx):
+				file_idx = i_file_idx;
+				break;
+	
+	if not locale_data.found_in.has(file_idx):
+		return ERR_CANT_RESOLVE;
+	
+	var file := get_file_data(file_idx);
+	var change_result = file.change_translation(locale, key, new_value);
+	
+	if change_result != OK:
+		push_error("error when changing translation: %s" % error_string(change_result));
+		return FAILED;
+	
+	var change := CompositeChange.create_new(file_idx);
+	register_change(change);
+	
 	return OK;
 
 
 ## moves key and it's values to new files, removing it from the old ones
 ## returns ERR_INVALID_DATA if selected files can cause key collision
+## returns ERR_CANT_RESOLVE if new files don't have locales for all non "" translations
+## returns FAILED if any of the file data methods failed for whatever reason
 func move_key_to_files(key: String, files: Array[int]) -> Error:
+	var new_locales = get_files_localizations(files);
+	
+	if get_files_localizations(files).values().any(func(c): return c > 1):
+		return ERR_INVALID_DATA;
+	
+	var existing_translations = get_key_data(key);
+	var non_empty_translations = existing_translations.keys().filter(
+		func(k): return existing_translations[k] != ""
+	);
+	
+	if not non_empty_translations.all(func(l): return new_locales.has(l)):
+		return ERR_CANT_RESOLVE;
+	
+	# step 1: remove key from old files, which are not within files argument
+	var change = CompositeChange.new();
+	
+	var old_files : Array[int] = Array(
+		[keys[key].file_idx] if keys[key].file_idx != -1 else non_unique_keys[key].file_idxs,
+		TYPE_INT, &"", null
+	);
+	
+	var remove_from = old_files.filter(func(file): return not files.has(file));
+	
+	for file_idx in remove_from:
+		var file_data = get_file_data(file_idx);
+		for locale in file_data.get_key_translations(key):
+			if file_data.change_translation(locale, key, "") != OK: # change all translations to ""
+				push_error("failed removing translation when moving key to files: %s, %s" % [key, files]);
+				undo_temp(change);
+				return FAILED; # I hope they'll add try catch one day
+			change.add(file_idx);
+		
+		if file_data.remove_key(key) != OK: # remove key from file
+			push_error("failed removing key when moving key to files: %s, %s" % [key, files]);
+			undo_temp(change);
+			return FAILED;
+		change.add(file_idx);
+	
+	# step 2: add key to the "totally new" files
+	var add_to = files.filter(func(file): return not old_files.has(file));
+	
+	for file_idx in add_to:
+		var file_data = get_file_data(file_idx);
+		if file_data.add_key(key) != OK: # remove key from file
+			push_error("failed adding key when moving key to files: %s, %s" % [key, files]);
+			undo_temp(change);
+			return FAILED;
+		change.add(file_idx);
+	
+	# step 3: set key values as existing translations
+	for file_idx in files:
+		var file_data = get_file_data(file_idx);
+		for locale in file_data.get_locales():
+			if file_data.change_translation(locale, key, existing_translations.get(locale, "")) != OK: # remove key from file
+				push_error("failed adding key when moving key to files: %s, %s" % [key, files]);
+				undo_temp(change);
+				return FAILED;
+	
 	return OK;
+
+
+## returns dictionary of [locale]: count for a given list of files. [br]
+## example: file a.csv has en and cn locales, file b.csv has en and ru locales.
+## When passing [{idx of "a.csv"}, {idx of "b.csv"}] as an argument, method will return {"en": 2, "ru": 1, "cn": 1} 
+func get_files_localizations(files: Array[int]) -> Dictionary[String, int]:
+	var result : Dictionary[String, int] = {};
+	
+	for locale in localizations:
+		var l10n_data = localizations[locale];
+		result[locale] = files.reduce(
+			func(accum, file_idx): return accum + (1 if l10n_data.found_in.has(file_idx) else 0),
+			0
+		);
+	
+	for locale in result.keys().filter(func(l): return result[l] == 0):
+		result.erase(locale);
+	
+	return result;
 
 
 func get_key_data(key: String) -> Dictionary[String, String]:
@@ -130,11 +291,12 @@ func scan_open_file_data(path: String) -> void:
 	var file_idx := cwd_files.find(path);
 	var data := get_file_data(file_idx);
 	
-	var header := data.header;
+	var locales := data.get_locales();
 	var comment_columns : Array[int] = [];
-	for locale_idx in range(1, header.size()):
-		var locale_key := header[locale_idx];
+	for locale_idx in locales.size():
+		var locale_key := locales[locale_idx];
 		if locale_key == "":
+			empty_localizations[file_idx] = empty_localizations.get(file_idx, 0) + 1; 
 			push_warning("malformed header: locale field empty (%s)" % path);
 			continue;
 		
@@ -145,7 +307,7 @@ func scan_open_file_data(path: String) -> void:
 		
 		register_locale(locale_key, file_idx);
 	
-	var file_localization_count = header.size() - 1 - comment_columns.size();
+	var file_localization_count = locales.size() - 1 - comment_columns.size();
 	for key in data.data:
 		var line = PackedStringArray([key]);
 		line.append_array(data.data[key]);
@@ -169,6 +331,7 @@ func scan_on_disk_data(path: String) -> void:
 	for locale_idx in range(1, header.size()):
 		var locale_key := header[locale_idx];
 		if locale_key == "":
+			empty_localizations[file_idx] = empty_localizations.get(file_idx, 0) + 1;
 			push_warning("malformed header: locale field empty (%s)" % path);
 			continue;
 		
@@ -252,8 +415,10 @@ func check_for_possible_collisions() -> void:
 func get_single_file_dupes() -> Array[String]:
 	var result : Array[String] = [];
 	
-	for key in possible_collisions:
-		var files = possible_collisions[key];
+	for key in non_unique_keys:
+		var files := non_unique_keys[key].file_idxs;
+		files.sort();
+		
 		for idx in range(1, files.size()):
 			if files[idx - 1] == files[idx]:
 				result.push_back(key);

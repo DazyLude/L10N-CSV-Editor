@@ -2,6 +2,9 @@ extends RefCounted
 class_name FileData
 
 
+## in-memory and disk data manipulation, saving and managing backups
+
+
 const PH_LOC_PREFIX := "unknown_locale";
 const FIRST_CELL_VALUE := "key";
 const BACKUP_LOCATION := "user://backups";
@@ -322,6 +325,10 @@ func undo() -> Error:
 	var change = changes[changes_position];
 	undo_methods[change.type].call(change);
 	return OK;
+
+
+func get_locales() -> Array[String]:
+	return Array(header, TYPE_STRING, &"", null);
 
 
 func get_key_translations(key: String) -> Dictionary[String, String]:

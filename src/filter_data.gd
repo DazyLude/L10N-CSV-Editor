@@ -1,24 +1,33 @@
 extends RefCounted
 class_name FilterData
 
+## Parsing filter query and matching strings
+##
 ## The following keywords can be used, separated by comma:[br]
-## 1) key:{string} (used by default): filters keys by "globbing" with the provided string.[br]
-##    Example: key:FOO and FOO produce the same result.[br]
-## 2) case: turns case sensitive search on.[br]
-##    Example: FOO,case will not match a key "fooBAR".[br]
-## 3) file:{string} : limits the filter to files with matching names (paths). Works in a similar fashion to key matching.[br]
-##    Example: file:menu,case will show keys only in the files that have "menu" in name.[br]
-## 4) cur: Shorthand for file:"current_file_name". If no file is "current" does nothing.[br]
-## 5) dupes: display single file dupes, so that you could fix them manually :) [br]
+## - [b]key:{string}[/b] (used by default): filters keys by "globbing" with the provided string.[br]
+##   Example: [param key:FOO] (or just [param FOO]) will show keys [i]FOO[/i] and [i]FOOBAR[/i] but not [i]BAR[/i][br]
+## - [b]exact:{string}[/b]: filters keys by equality.[br]
+##   Example: [param exact:FOO] displays key [i]FOO[/i], but hides [i]FOOBAR[/i].[br]
+## - [b]case[/b]: turns case sensitive search on.[br]
+##   Example: [param FOO,case] will match [i]FOObar[/i], but not [i]fooBAR[/i].[br]
+## - [b]file:{string}[/b]: limits the filter to files with matching names (paths). Works in a similar fashion to [b]key[/b] matching.[br]
+##   Example: [param file:menu,case] will show keys in the file [i]cwd/l10ns/menu.csv[/i] but not in [i]cwd/l10ns/quests.csv[/i][br]
 ## [br]
-## Different keywords combine multiplicatevely:
-## file:FOO,key:CHUNGUS will show only keys containing CHUNGUS in files with FOO in their name.[br]
-## Similar keywords combine additevely:
-## key:FIZZ,key:BUZZ will display keys with FIZZ and/or BUZZ in them.[br]
-## The comma (,) is a special symbol. To use it: don't.
+## Shorthands and special filters:[br]
+## - [b]cur[/b]: shorthand for [param file:{current_file_name}]. If no file is currently selected does nothing.[br]
+## - [b]dupe[/b]: display single file dupes, so that you could fix them manually :) [br]
+## - [b]collision[/b]: display keys with potential collisions[br]
+## [br]
+## Different keywords combine multiplicatevely:[br]
+## [param file:FOO,key:CHUNGUS] will show only keys containing [i]CHUNGUS[/i] in files with [i]FOO[/i] in their name.[br][br]
+## Similar keywords combine additively:[br]
+## [param key:FIZZ,key:BUZZ] will display keys [i]FIZZ[/i] and [i]BUZZ[/i] and [i]FIZZBUZZ[/i].[br][br]
+## The comma (,) is a special symbol. To use it: don't.[br]
+## Whitespaces before and after arguments are ignored, as well as before the keywords.[br]
 
 
 var key_filters : Array[String] = [];
+var exact_match : Array[String] = [];
 var file_idxs : Array[int] = [];
 var is_case_sensitive : bool = false;
 var cwd_state_ref : CWDState = null;
@@ -39,15 +48,19 @@ static func from_query(filter_query: String, data: CWDState) -> FilterData:
 	for setting in filter_settings:
 		match setting.strip_edges():
 			_ when setting.begins_with("key:"):
-				new_filter_data.key_filters.push_back("*%s*" % setting.trim_prefix("key:"));
+				new_filter_data.key_filters.push_back("*%s*" % setting.trim_prefix("key:").strip_edges());
 			_ when setting.begins_with("file:"):
-				file_filters.push_back("*%s*" % setting.trim_prefix("file:"));
+				file_filters.push_back("*%s*" % setting.trim_prefix("file:").strip_edges());
+			_ when setting.begins_with("exact:"):
+				new_filter_data.exact_match.push_back(setting.trim_prefix("file:").strip_edges());
 			"case":
 				new_filter_data.is_case_sensitive = true;
 			"cur" when data.current_file_idx != -1:
 				file_filters.push_back(data.cwd_files[data.current_file_idx]);
-			"dupes":
-				new_filter_data.key_filters.append_array(data.get_single_file_dupes());
+			"dupe":
+				new_filter_data.exact_match.append_array(data.get_single_file_dupes());
+			"collision":
+				new_filter_data.exact_match.append_array(data.possible_collisions.keys());
 			_:
 				new_filter_data.key_filters.push_back("*%s*" % setting);
 	
@@ -83,6 +96,10 @@ func matches(key: String) -> bool:
 			file_chk = file_idxs.any(actual_data.file_idxs.has);
 	
 		if not file_chk:
+			return false;
+	
+	if not exact_match.is_empty():
+		if not exact_match.any(func(exa: String): return exa == key):
 			return false;
 	
 	if not key_filters.is_empty():
