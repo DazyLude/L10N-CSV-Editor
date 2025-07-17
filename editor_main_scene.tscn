@@ -24,6 +24,10 @@ grow_vertical = 2
 [node name="DirInfo" type="HBoxContainer" parent="Main"]
 layout_mode = 2
 
+[node name="SaveData" type="Button" parent="Main/DirInfo"]
+layout_mode = 2
+text = "open backups and logs folder"
+
 [node name="ChangeDirButton" type="Button" parent="Main/DirInfo"]
 layout_mode = 2
 text = "change working directory"
@@ -31,6 +35,10 @@ text = "change working directory"
 [node name="DirName" type="Label" parent="Main/DirInfo"]
 layout_mode = 2
 text = "cwd: lorem ipsum\\dolor sit amet"
+
+[node name="OpenUserdata" type="Button" parent="Main/DirInfo"]
+layout_mode = 2
+text = "open backups and logs folder"
 
 [node name="CWDInfo" type="HBoxContainer" parent="Main"]
 layout_mode = 2

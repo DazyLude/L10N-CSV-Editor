@@ -2,6 +2,8 @@ extends RefCounted
 class_name CWDState
 
 
+const SESSION_DATA_PATH := "user://session.csv";
+
 ## cwd path
 var cwd_handle : DirAccess;
 ## paths to csv files located in cwd
@@ -99,6 +101,13 @@ func backup_changes() -> void:
 		file_data.backup_changes();
 
 
+func restore_backup() -> void:
+	for file_idx in table_data.keys().filter(func(v): return table_data[v] != null):
+		var path = table_data[file_idx].path;
+		table_data.erase(file_idx);
+		table_data[file_idx] = FileData.open_at(path);
+
+
 func save_changes() -> void:
 	for file_data in table_data.values().filter(func(v): return v != null):
 		file_data.save_current();
@@ -121,6 +130,13 @@ func add_new_key(key: String) -> Error:
 		return FAILED;
 	
 	register_change(CompositeChange.create_new(current_file_idx));
+	
+	return OK;
+
+
+func rename_key(from: String, to: String) -> Error:
+	if current_file_idx == -1:
+		return ERR_INVALID_DATA;
 	
 	return OK;
 

@@ -129,14 +129,21 @@ func get_backup_file_path() -> String:
 	
 	# file not found, creating a new one
 	var path_hash := "%s" % hash(path);
-	if path_hash in files: # you won a lottery
-		if not FileAccess.file_exists(get_backup_owner_path(path_hash)):
+	var backup_path = BACKUP_LOCATION.path_join(path_hash);
+	if path_hash in files:
+		var backup_owner = get_backup_owner_path(backup_path);
+		if backup_owner == path: # you found your own backup
+			return backup_path; 
+		
+		if not FileAccess.file_exists(backup_owner): # you won a lottery
 			# original backup onwer doesn't exist anymore, yoink
-			OS.move_to_trash(BACKUP_LOCATION.path_join(path_hash));
-			return BACKUP_LOCATION.path_join(path_hash);
+			var backup_global_path = ProjectSettings.globalize_path(backup_path);
+			OS.move_to_trash(backup_global_path);
+			return backup_path;
+		
 		return BACKUP_LOCATION.path_join(make_filename_unique(path_hash, files));
 	
-	return BACKUP_LOCATION.path_join(path_hash);
+	return backup_path;
 
 
 func make_filename_unique(file : String, other_files : PackedStringArray) -> String:
@@ -263,6 +270,8 @@ static func open_at(file_path: String) -> FileData:
 		
 		file_data.data[line[0]] = line.slice(1);
 	
+	file_data.on_disk_data_hash = hash(file_data.data);
+	
 	handle.close();
 	file_data.restore_changes();
 	
@@ -292,7 +301,7 @@ func save_current() -> Error:
 		var full_line := PackedStringArray([key]);
 		full_line.append_array(data[key]);
 		full_line.resize(full_header.size());
-		handle.store_csv_line(full_header);
+		handle.store_csv_line(full_line);
 	
 	backup_changes();
 	

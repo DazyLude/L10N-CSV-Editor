@@ -55,6 +55,9 @@ func _ready() -> void:
 	
 	key_info.get_node(^"DisplayOther").toggled.connect(display_other);
 	display_other(key_info.get_node(^"DisplayOther").is_pressed());
+	
+	dir_info.get_node(^"OpenUserdata").pressed.connect(open_userdata);
+	dir_info.get_node(^"SaveData").pressed.connect(save_data)
 
 
 func _notification(what: int) -> void:
@@ -73,6 +76,26 @@ func _shortcut_input(event: InputEvent) -> void:
 		data.redo();
 		update_all();
 		get_viewport().set_input_as_handled();
+	
+	
+	if event.is_action_pressed(&"save_to_disk"):
+		get_viewport().gui_release_focus();
+		data.save_changes();
+		get_viewport().set_input_as_handled();
+	
+	
+	if event.is_action_pressed(&"save_backup"):
+		get_viewport().gui_release_focus();
+		data.backup_changes();
+		get_viewport().set_input_as_handled();
+	
+	
+	if event.is_action_pressed(&"restore_session"):
+		get_viewport().gui_release_focus();
+		data.restore_backup();
+		update_all();
+		get_viewport().set_input_as_handled();
+	
 	
 	if event.is_action_pressed(&"submit_text_change"):
 		get_viewport().gui_release_focus();
@@ -312,3 +335,11 @@ func edit_translation() -> void:
 	data.change_translation(selected_key, current_locale, current_text);
 	
 	display_key_translations(selected_key_idx);
+
+
+func open_userdata() -> void:
+	OS.shell_open(ProjectSettings.globalize_path(FileData.BACKUP_LOCATION));
+
+
+func save_data() -> void:
+	data.save_changes();
