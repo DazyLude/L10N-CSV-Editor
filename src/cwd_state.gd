@@ -54,8 +54,8 @@ func register_change(change: CompositeChange) -> void:
 	changes_position += 1;
 
 
-## returns FAILED if at the top of changes stack
-func redo() -> Error:
+## returns FAILED if at the top of changes stack, otherwise returns a String
+func redo() -> Variant:
 	if changes_position >= changes.size():
 		return FAILED;
 	
@@ -70,11 +70,11 @@ func redo() -> Error:
 				break; # will fail only if undo stack bottom is reached (in theory)
 	
 	changes_position += 1;
-	return OK;
+	return change.editor_meta;
 
 
-## returns FAILED if at the bottom of changes stack
-func undo() -> Error:
+## returns FAILED if at the bottom of changes stack, otherwise returns a String
+func undo() -> Variant:
 	if changes_position <= 0:
 		return FAILED;
 	
@@ -85,7 +85,8 @@ func undo() -> Error:
 	return undo_temp(change);
 
 
-func undo_temp(change: CompositeChange) -> Error:
+## returns a String if undo was successful, otherwise returns FAILED
+func undo_temp(change: CompositeChange) -> Variant:
 	for file_idx in change.changes:
 		var file_data = get_file_data(file_idx);
 		for _i in range(change.changes[file_idx]):
@@ -93,7 +94,7 @@ func undo_temp(change: CompositeChange) -> Error:
 				push_error("less undoable actions than expected in filedata for %s" % cwd_files[file_idx]);
 				break; # will fail only if undo stack bottom is reached (in theory)
 	
-	return OK;
+	return change.editor_meta;
 
 
 func backup_changes() -> void:
@@ -123,21 +124,44 @@ func add_new_key(key: String) -> Error:
 	if keys.has(key):
 		return FAILED;
 	
-	register_key(PackedStringArray(), 0, current_file_idx, []);
 	var file_data = get_file_data(current_file_idx);
 	if file_data.add_key(key) != OK:
 		push_error("key was not registered, but was present in the current file");
 		return FAILED;
 	
-	register_change(CompositeChange.create_new(current_file_idx));
+	register_change(CompositeChange.create_new(current_file_idx, key));
+	
+	register_key(PackedStringArray(), 0, current_file_idx, []);
 	
 	return OK;
 
 
+## renames the key in the existing files.
+## returns ERR_INVALID_DATA if key doesn't exist or new key name corresponds with another key 
+## returns FAILED if any of the file_data changes fail
 func rename_key(from: String, to: String) -> Error:
-	if current_file_idx == -1:
+	if not keys.has(from) or keys.has(to):
 		return ERR_INVALID_DATA;
 	
+	if from == to:
+		return OK;
+	
+	var key_data = keys[from];
+	var change = CompositeChange.new("");
+	
+	var files = [key_data.file_idx] if key_data.file_idx != -1 else non_unique_keys[from].file_idxs;
+	for file in files:
+		var file_data = get_file_data(file);
+		if file_data.change_key(from, to) != OK:
+			push_error("Failed to change key from %s to %s" % [from, to]);
+			undo_temp(change);
+			return FAILED;
+		change.add(file);
+	
+	keys[to] = key_data;
+	keys.erase(from);
+	
+	register_change(change);
 	return OK;
 
 
@@ -163,13 +187,21 @@ func change_translation(key: String, locale: String, new_value: String) -> Error
 		return ERR_CANT_RESOLVE;
 	
 	var file := get_file_data(file_idx);
+	var old_value = file.get_translation(key, locale);
+	
+	if old_value == new_value:
+		return OK;
+	
 	var change_result = file.change_translation(locale, key, new_value);
 	
 	if change_result != OK:
 		push_error("error when changing translation: %s" % error_string(change_result));
 		return FAILED;
 	
-	var change := CompositeChange.create_new(file_idx);
+	if (new_value == "") != (old_value == ""):
+		keys[key].localization_count += 1 if old_value == "" else -1;
+	
+	var change := CompositeChange.create_new(file_idx, key);
 	register_change(change);
 	
 	return OK;
@@ -194,7 +226,7 @@ func move_key_to_files(key: String, files: Array[int]) -> Error:
 		return ERR_CANT_RESOLVE;
 	
 	# step 1: remove key from old files, which are not within files argument
-	var change = CompositeChange.new();
+	var change = CompositeChange.new(key);
 	
 	var old_files : Array[int] = Array(
 		[keys[key].file_idx] if keys[key].file_idx != -1 else non_unique_keys[key].file_idxs,
@@ -238,6 +270,31 @@ func move_key_to_files(key: String, files: Array[int]) -> Error:
 				undo_temp(change);
 				return FAILED;
 	
+	if files.size() == 1:
+		keys[key].file_idx = files[0];
+	else:
+		keys[key].file_idx = -1;
+		non_unique_keys.get_or_add(key, NonUniqueKeyData.new()).file_idxs = PackedInt64Array(files);
+	
+	return OK;
+
+
+## adds locale to currently selected file
+func add_locale_to_file(locale: String) -> Error:
+	if current_file_idx == -1:
+		return ERR_CANT_RESOLVE;
+	
+	var file_data := get_file_data(current_file_idx);
+	if file_data.add_locale(locale) != OK:
+		push_error("failed adding locale to file: %s, %s" % [locale, file_data.path]);
+		return FAILED;
+	
+	if locale.begins_with("_"):
+		register_comment(locale, current_file_idx);
+	else:
+		register_locale(locale, current_file_idx);
+	
+	register_change(CompositeChange.create_new(current_file_idx, ""));
 	return OK;
 
 
@@ -277,6 +334,17 @@ func get_key_data(key: String) -> Dictionary[String, String]:
 				result.merge(file_data.get_key_translations(key));
 	
 	return result;
+
+
+func get_key_files(key: String) -> Array[int]:
+	if not key in keys:
+		return Array([], TYPE_INT, &"", null);
+	
+	var key_data = keys[key];
+	if key_data.file_idx != -1:
+		return Array([key_data.file_idx], TYPE_INT, &"", null);
+	
+	return Array(non_unique_keys[key].file_idxs, TYPE_INT, &"", null);
 
 
 func scan_cwd(path: String) -> void:
@@ -496,10 +564,15 @@ class LocaleData extends RefCounted:
 class CompositeChange extends RefCounted:
 	# [file idx] -> change_count
 	var changes : Dictionary[int, int];
+	var editor_meta : String = "";
 	
 	
-	static func create_new(file_idx: int) -> CompositeChange:
-		var change = CompositeChange.new();
+	func _init(meta: String) -> void:
+		editor_meta = meta;
+	
+	
+	static func create_new(file_idx: int, editor_meta: String) -> CompositeChange:
+		var change = CompositeChange.new(editor_meta);
 		change.changes[file_idx] = 1;
 		return change;
 	

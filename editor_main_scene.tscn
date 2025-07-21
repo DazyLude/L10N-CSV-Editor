@@ -26,7 +26,7 @@ layout_mode = 2
 
 [node name="SaveData" type="Button" parent="Main/DirInfo"]
 layout_mode = 2
-text = "open backups and logs folder"
+text = "save changes"
 
 [node name="ChangeDirButton" type="Button" parent="Main/DirInfo"]
 layout_mode = 2
@@ -35,6 +35,10 @@ text = "change working directory"
 [node name="DirName" type="Label" parent="Main/DirInfo"]
 layout_mode = 2
 text = "cwd: lorem ipsum\\dolor sit amet"
+
+[node name="RestoreSession" type="Button" parent="Main/DirInfo"]
+layout_mode = 2
+text = "save changes"
 
 [node name="OpenUserdata" type="Button" parent="Main/DirInfo"]
 layout_mode = 2
@@ -82,9 +86,9 @@ layout_mode = 2
 layout_mode = 2
 text = "add file"
 
-[node name="ChangeFile" type="Button" parent="Main/FileInfo"]
+[node name="CurrenFileLabel" type="Label" parent="Main/FileInfo"]
 layout_mode = 2
-text = "change file"
+text = "current file:"
 
 [node name="CurrentFile" type="OptionButton" parent="Main/FileInfo"]
 layout_mode = 2
@@ -93,10 +97,6 @@ layout_mode = 2
 layout_mode = 2
 text = "string keys: 10"
 
-[node name="Missing" type="Label" parent="Main/FileInfo"]
-layout_mode = 2
-text = "Strings missing one or more localizations: 0"
-
 [node name="KeyInfo" type="HBoxContainer" parent="Main"]
 layout_mode = 2
 
@@ -104,13 +104,9 @@ layout_mode = 2
 layout_mode = 2
 text = "add new key"
 
-[node name="AddNewLocalization" type="Button" parent="Main/KeyInfo"]
+[node name="RenameKey" type="Button" parent="Main/KeyInfo"]
 layout_mode = 2
-text = "add new localization"
-
-[node name="DisplayOther" type="CheckBox" parent="Main/KeyInfo"]
-layout_mode = 2
-text = "Edit side by side"
+text = "add new key"
 
 [node name="KeyEditLabel" type="Label" parent="Main/KeyInfo"]
 layout_mode = 2
@@ -121,22 +117,43 @@ custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
 size_flags_vertical = 0
 placeholder_text = "key edit"
+expand_to_text_length = true
+
+[node name="AddNewLocalization" type="Button" parent="Main/KeyInfo"]
+layout_mode = 2
+text = "add new localization"
+
+[node name="LocaleEdit" type="LineEdit" parent="Main/KeyInfo"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+size_flags_vertical = 0
+placeholder_text = "new locale"
+expand_to_text_length = true
 
 [node name="Warnings" type="Label" parent="Main/KeyInfo"]
+visible = false
 layout_mode = 2
 text = "warnings: none"
 
 [node name="Edit" type="TabContainer" parent="Main"]
 layout_mode = 2
 size_flags_vertical = 3
-current_tab = 0
+current_tab = 1
 
-[node name="Localization" type="HBoxContainer" parent="Main/Edit"]
+[node name="Localization" type="VBoxContainer" parent="Main/Edit"]
+visible = false
 layout_mode = 2
-size_flags_vertical = 3
 metadata/_tab_index = 0
 
-[node name="Locale" type="OptionButton" parent="Main/Edit/Localization"]
+[node name="DisplayOther" type="CheckBox" parent="Main/Edit/Localization"]
+layout_mode = 2
+text = "Edit side by side"
+
+[node name="EditFields" type="HBoxContainer" parent="Main/Edit/Localization"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Locale" type="OptionButton" parent="Main/Edit/Localization/EditFields"]
 layout_mode = 2
 size_flags_vertical = 0
 selected = 0
@@ -147,7 +164,7 @@ popup/item_0/id = 0
 popup/item_1/text = "ru"
 popup/item_1/id = 1
 
-[node name="Translation" type="TextEdit" parent="Main/Edit/Localization"]
+[node name="Translation" type="TextEdit" parent="Main/Edit/Localization/EditFields"]
 custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -157,7 +174,7 @@ draw_control_chars = true
 draw_tabs = true
 draw_spaces = true
 
-[node name="OtherLocale" type="OptionButton" parent="Main/Edit/Localization"]
+[node name="OtherLocale" type="OptionButton" parent="Main/Edit/Localization/EditFields"]
 layout_mode = 2
 size_flags_vertical = 0
 selected = 0
@@ -168,7 +185,7 @@ popup/item_0/id = 0
 popup/item_1/text = "ru"
 popup/item_1/id = 1
 
-[node name="OtherTranslation" type="TextEdit" parent="Main/Edit/Localization"]
+[node name="OtherTranslation" type="TextEdit" parent="Main/Edit/Localization/EditFields"]
 custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -179,7 +196,6 @@ draw_tabs = true
 draw_spaces = true
 
 [node name="Files" type="HBoxContainer" parent="Main/Edit"]
-visible = false
 layout_mode = 2
 size_flags_vertical = 3
 metadata/_tab_index = 1
@@ -189,19 +205,31 @@ custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
 
 [node name="Provided" type="Label" parent="Main/Edit/Files/Info"]
+custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
 text = "present locales: en, ru"
 autowrap_mode = 3
 
 [node name="Missing" type="Label" parent="Main/Edit/Files/Info"]
+custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
 text = "missing: none"
 autowrap_mode = 3
+
+[node name="Reset" type="Button" parent="Main/Edit/Files/Info"]
+layout_mode = 2
+text = "Reset"
+
+[node name="Apply" type="Button" parent="Main/Edit/Files/Info"]
+layout_mode = 2
+text = "Apply
+"
 
 [node name="FileList" type="ItemList" parent="Main/Edit/Files"]
 custom_minimum_size = Vector2(0, 150)
 layout_mode = 2
 size_flags_horizontal = 3
+select_mode = 2
 item_count = 2
 max_columns = 0
 same_column_width = true
@@ -209,6 +237,7 @@ item_0/text = "item"
 item_1/text = "item2"
 
 [node name="Messages" type="ScrollContainer" parent="Main"]
+visible = false
 custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 size_flags_horizontal = 3

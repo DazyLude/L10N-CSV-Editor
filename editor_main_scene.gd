@@ -16,6 +16,8 @@ var filter_data : FilterData = FilterData.new(data);
 var selected_key_idx : int;
 var selected_key : String;
 var selected_key_data : Dictionary[String, String];
+var key_lookup : Dictionary[String, int];
+
 
 @onready
 var dir_info : Control = $Main/DirInfo;
@@ -28,7 +30,7 @@ var file_info : Control = $Main/FileInfo;
 @onready
 var key_info : Control = $Main/KeyInfo;
 @onready
-var localization_edit : Control = $Main/Edit/Localization;
+var localization_edit : Control = $Main/Edit/Localization/EditFields;
 @onready
 var file_edit : Control = $Main/Edit/Files;
 @onready
@@ -36,6 +38,12 @@ var status_info : Control = $Main/Messages/MessagesContainer;
 
 
 func _ready() -> void:
+	cwd_info.hide();
+	key_select.hide();
+	file_info.hide();
+	key_info.hide();
+	$Main/Edit.hide();
+	
 	PersistentData.load_fom_disk();
 	if PersistentData.last_working_directory != "":
 		folder_change_util(PersistentData.last_working_directory);
@@ -44,6 +52,12 @@ func _ready() -> void:
 	
 	key_select.get_node(^"KeyFilter").text_submitted.connect(on_filter_string_submit);
 	key_select.get_node(^"KeyList").item_selected.connect(display_key_translations);
+	key_select.get_node(^"KeyList").item_selected.connect(update_key_files);
+	
+	$Main/Edit/Files/FileList.multi_selected.connect(update_provided_locales);
+	
+	$Main/FileInfo/CurrentFile.item_selected.connect(select_file);
+	select_file(0);
 	
 	localization_edit.get_node(^"Locale").item_selected.connect(update_translation);
 	localization_edit.get_node(^"OtherLocale").item_selected.connect(update_other_translation);
@@ -53,11 +67,16 @@ func _ready() -> void:
 	localization_edit.get_node(^"OtherTranslation").focus_entered.connect(start_editing.bind(false));
 	localization_edit.get_node(^"OtherTranslation").focus_exited.connect(edit_translation);
 	
-	key_info.get_node(^"DisplayOther").toggled.connect(display_other);
-	display_other(key_info.get_node(^"DisplayOther").is_pressed());
+	var display_other_switch := $Main/Edit/Localization/DisplayOther;
+	display_other_switch.toggled.connect(display_other);
+	display_other(display_other_switch.is_pressed());
 	
 	dir_info.get_node(^"OpenUserdata").pressed.connect(open_userdata);
-	dir_info.get_node(^"SaveData").pressed.connect(save_data)
+	dir_info.get_node(^"SaveData").pressed.connect(save_data);
+	
+	$Main/KeyInfo/AddNewKey.pressed.connect(add_key);
+	$Main/KeyInfo/RenameKey.pressed.connect(rename_key);
+	$Main/KeyInfo/AddNewLocalization.pressed.connect(add_locale);
 
 
 func _notification(what: int) -> void:
@@ -68,12 +87,16 @@ func _notification(what: int) -> void:
 
 func _shortcut_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"ui_undo"):
-		data.undo();
+		var meta = data.undo();
+		if typeof(meta) == TYPE_STRING:
+			apply_meta(meta);
 		update_all();
 		get_viewport().set_input_as_handled();
 	
 	if event.is_action_pressed(&"ui_redo"):
-		data.redo();
+		var meta = data.redo();
+		if typeof(meta) == TYPE_STRING:
+			apply_meta(meta);
 		update_all();
 		get_viewport().set_input_as_handled();
 	
@@ -100,6 +123,19 @@ func _shortcut_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"submit_text_change"):
 		get_viewport().gui_release_focus();
 		get_viewport().set_input_as_handled();
+
+
+func apply_meta(meta: String) -> void:
+	match meta:
+		"":
+			refresh_list_of_keys()
+			return;
+		var key when key in key_lookup: # assuming meta is a key name
+			var key_select : ItemList = key_select.get_node(^"KeyList");
+			var key_idx = key_lookup[key];
+			key_select.select(key_idx);
+			display_key_translations(key_idx);
+			update_key_files();
 
 
 func update_all() -> void:
@@ -158,15 +194,54 @@ func update_cwd_data_display() -> void:
 
 
 func refresh_list_of_keys() -> void:
-	key_select.get_node(^"KeyList").clear();
+	var list_of_keys : ItemList = key_select.get_node(^"KeyList");
+	list_of_keys.clear();
+	key_lookup.clear();
+	
 	for key in data.keys.keys().filter(filter_data.matches):
-		key_select.get_node(^"KeyList").add_item(key);
+		var idx = list_of_keys.add_item(key);
+		key_lookup[key] = idx;
+		if key == selected_key:
+			selected_key_idx = idx;
+			list_of_keys.select(idx);
 
 
 func refresh_list_of_files() -> void:
-	file_info.get_node(^"CurrentFile").clear();
+	var file_selector : OptionButton = file_info.get_node(^"CurrentFile");
+	var file_list : ItemList = file_edit.get_node(^"FileList");
+	file_selector.clear();
+	file_list.clear();
+	
+	file_selector.add_item("not selected");
 	for file in data.cwd_files:
-		file_info.get_node(^"CurrentFile").add_item(file);
+		file_selector.add_item(file.get_file());
+		file_list.add_item(file.get_file());
+	
+	if data.current_file_idx != -1:
+		file_selector.select(data.current_file_idx + 1);
+
+
+func update_key_files(_idx: int = 0) -> void:
+	var file_list : ItemList = file_edit.get_node(^"FileList");
+	var provided_locales : Label = file_edit.get_node(^"Info/Provided");
+	file_list.deselect_all();
+	
+	if selected_key == "":
+		return;
+	
+	var current_filelist = data.get_key_files(selected_key);
+	provided_locales.text = "current locales: %s" % data.get_files_localizations(current_filelist);
+	
+	for file in current_filelist:
+		file_list.select(file);
+
+
+func update_provided_locales(_idx: int = 0, _sel: bool = true) -> void:
+	var file_list : ItemList = file_edit.get_node(^"FileList");
+	var provided_locales : Label = file_edit.get_node(^"Info/Provided");
+	
+	var current_filelist := Array(file_list.get_selected_items() as Array, TYPE_INT, &"", null);
+	provided_locales.text = "current locales: %s" % data.get_files_localizations(current_filelist);
 
 
 func change_folder() -> void:
@@ -196,9 +271,17 @@ func finish_change_folder(dir: String, dialog: FileDialog) -> void:
 
 
 func folder_change_util(path: String) -> void:
+	cwd_info.show();
+	key_select.show();
+	file_info.show();
+	key_info.show();
+	$Main/Edit.show();
+	
+	
 	data.scan_cwd(path);
 	update_cwd_data_display();
 	refresh_list_of_keys();
+	refresh_list_of_files();
 	update_localization_select();
 	update_status();
 
@@ -206,6 +289,8 @@ func folder_change_util(path: String) -> void:
 func display_key_translations(key_idx: int) -> void:
 	selected_key_idx = key_idx;
 	selected_key = key_select.get_node(^"KeyList").get_item_text(key_idx);
+	key_info.get_node(^"KeyEdit").text = selected_key;
+	
 	selected_key_data = data.get_key_data(selected_key);
 	
 	if localization_edit.get_node(^"Locale").selected != -1 \
@@ -214,18 +299,7 @@ func display_key_translations(key_idx: int) -> void:
 
 
 func update_translation_data(_idx: int = -1) -> void:
-	var locale_check = {};
-	locale_check.merge(selected_key_data);
-	locale_check.merge(data.localizations);
-	
-	if locale_check.keys().size() > data.localizations.keys().size():
-		update_localization_select_with_key_data();
-		return;
-	
-	if localization_edit.get_node(^"Locale").item_count > locale_check.keys().size():
-		update_localization_select();
-		return;
-	
+	update_localization_select();
 	update_translation();
 	update_other_translation();
 
@@ -247,35 +321,6 @@ func update_other_translation(_idx: int = -1) -> void:
 
 
 func update_localization_select() -> void:
-	var locale := localization_edit.get_node(^"Locale");
-	var other_locale := localization_edit.get_node(^"OtherLocale");
-	
-	var temp_idx : int = locale.selected;
-	var temp_idx_other : int = other_locale.selected;
-	
-	locale.clear();
-	other_locale.clear();
-	
-	for locale_key in data.localizations:
-		locale.add_item(locale_key);
-		other_locale.add_item(locale_key);
-	
-	if temp_idx < locale.item_count:
-		locale.select(temp_idx);
-		update_translation();
-	else:
-		locale.select(0);
-		update_translation();
-	
-	if temp_idx_other < other_locale.item_count:
-		other_locale.select(temp_idx_other);
-		update_other_translation();
-	else:
-		other_locale.select(0);
-		update_other_translation();
-
-
-func update_localization_select_with_key_data() -> void:
 	var locale := localization_edit.get_node(^"Locale");
 	var other_locale := localization_edit.get_node(^"OtherLocale");
 	
@@ -335,6 +380,61 @@ func edit_translation() -> void:
 	data.change_translation(selected_key, current_locale, current_text);
 	
 	display_key_translations(selected_key_idx);
+
+
+func select_file(selected_idx: int) -> void:
+	data.current_file_idx = selected_idx - 1;
+	
+	var key_count : Label = file_info.get_node(^"KeyCount");
+	
+	var file_selected = data.current_file_idx != -1;
+	if file_selected:
+		var filedata := data.get_file_data(data.current_file_idx);
+		key_count.text = "keys: %d" % filedata.data.size();
+	
+	key_count.visible = file_selected;
+
+
+func add_key() -> void:
+	var new_key_name = key_info.get_node(^"KeyEdit").text;
+	
+	if new_key_name == "" or key_lookup.has(new_key_name):
+		return;
+	
+	var change_result = data.add_new_key(new_key_name);
+	if change_result == OK:
+		selected_key = new_key_name;
+		refresh_list_of_keys();
+
+
+func rename_key() -> void:
+	var new_key_name = key_info.get_node(^"KeyEdit").text;
+	var old_key_name = selected_key;
+	
+	if new_key_name == "" or new_key_name == old_key_name:
+		return;
+	
+	var change_result = data.rename_key(old_key_name, new_key_name);
+	if change_result == OK:
+		selected_key = new_key_name;
+		if selected_key_idx != -1:
+			display_key_translations(selected_key_idx);
+		update_key_files();
+
+
+func add_locale() -> void:
+	var new_locale = $Main/KeyInfo/LocaleEdit.text;
+	
+	if data.current_file_idx == -1:
+		return;
+	
+	if new_locale in data.get_file_data(data.current_file_idx).get_locales():
+		return;
+	
+	var change_result = data.add_locale_to_file(new_locale);
+	if change_result == OK:
+		update_translation_data();
+		update_key_files();
 
 
 func open_userdata() -> void:

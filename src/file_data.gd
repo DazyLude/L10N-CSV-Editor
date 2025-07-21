@@ -337,7 +337,7 @@ func undo() -> Error:
 
 
 func get_locales() -> Array[String]:
-	return Array(header, TYPE_STRING, &"", null);
+	return Array(header as Array, TYPE_STRING, &"", null);
 
 
 func get_key_translations(key: String) -> Dictionary[String, String]:
@@ -414,14 +414,19 @@ func re_change_translation(change: FileChange) -> void:
 	translations[locale_idx] = new_value;
 
 
-func change_key(old_key: String, new_key: String) -> void:
+## returns FAILED if new key already exists in the data
+func change_key(old_key: String, new_key: String) -> Error:
+	if data.has(new_key):
+		return FAILED;
+	
 	if old_key == new_key:
-		return;
+		return OK;
 	
 	var change = FileChange.new(FileChange.CHANGE_KEY, PackedStringArray([old_key, new_key]));
 	register_change(change);
 	
 	_change_key_util(old_key, new_key);
+	return OK;
 
 
 func un_change_key(change: FileChange) -> void:
