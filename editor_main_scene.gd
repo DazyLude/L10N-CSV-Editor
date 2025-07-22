@@ -6,7 +6,6 @@ const ERR_KEY_DUPE := "Key duplicates within single files found: %s. Resolve the
 const ERR_KEY_COLLISION := "Possible collisions found: %s. Move keys to files using the \"Files\" tab.";
 
 
-var block_input : bool = false;
 var data := CWDState.new();
 var status_strings : Array[String] = [];
 var editing_main : bool = true;
@@ -76,7 +75,8 @@ func _ready() -> void:
 	
 	$Main/KeyInfo/AddNewKey.pressed.connect(add_key);
 	$Main/KeyInfo/RenameKey.pressed.connect(rename_key);
-	$Main/KeyInfo/AddNewLocalization.pressed.connect(add_locale);
+	$Main/LocaleInfo/AddNewLocalization.pressed.connect(add_locale);
+	$Main/FileInfo/AddFile.pressed.connect(create_new_file);
 
 
 func _notification(what: int) -> void:
@@ -244,30 +244,47 @@ func update_provided_locales(_idx: int = 0, _sel: bool = true) -> void:
 	provided_locales.text = "current locales: %s" % data.get_files_localizations(current_filelist);
 
 
-func change_folder() -> void:
-	block_input = true;
+func create_new_file() -> void:
+	var create_new_file = FileDialog.new();
+	create_new_file.file_mode = FileDialog.FILE_MODE_SAVE_FILE;
+	create_new_file.access = FileDialog.ACCESS_FILESYSTEM;
+	create_new_file.current_dir = data.cwd_handle.get_current_dir();
+	create_new_file.close_requested.connect(close_file_dialog.bind(create_new_file));
+	create_new_file.file_selected.connect(finish_create_new_file.bind(create_new_file));
 	
+	self.add_child(create_new_file);
+	create_new_file.popup_centered();
+
+
+func finish_create_new_file(file_path: String, dialog: FileDialog) -> void:
+	var path = dialog.current_file;
+	data.create_file(path);
+	close_file_dialog(dialog);
+	refresh_list_of_files();
+
+
+func change_folder() -> void:
 	var choose_new_file = FileDialog.new();
 	choose_new_file.file_mode = FileDialog.FILE_MODE_OPEN_DIR;
 	choose_new_file.access = FileDialog.ACCESS_FILESYSTEM;
 	choose_new_file.current_dir = OS.get_executable_path();
-	choose_new_file.close_requested.connect(cancel_change_folder.bind(choose_new_file));
+	choose_new_file.close_requested.connect(close_file_dialog.bind(choose_new_file));
 	choose_new_file.dir_selected.connect(finish_change_folder.bind(choose_new_file));
 	
 	self.add_child(choose_new_file);
 	choose_new_file.popup_centered();
 
 
-func cancel_change_folder(dialog: FileDialog) -> void:
+func close_file_dialog(dialog: FileDialog) -> void:
+	dialog.get_parent().remove_child(dialog);
 	dialog.hide();
-	dialog.free();
-	block_input = false;
+	dialog.queue_free();
 
 
 func finish_change_folder(dir: String, dialog: FileDialog) -> void:
 	PersistentData.last_working_directory = dir;
 	folder_change_util(dir)
-	cancel_change_folder(dialog);
+	close_file_dialog(dialog);
 
 
 func folder_change_util(path: String) -> void:
@@ -423,7 +440,8 @@ func rename_key() -> void:
 
 
 func add_locale() -> void:
-	var new_locale = $Main/KeyInfo/LocaleEdit.text;
+	var locale_edit = $Main/LocaleInfo/LocaleEdit
+	var new_locale = locale_edit.text;
 	
 	if data.current_file_idx == -1:
 		return;
@@ -435,6 +453,7 @@ func add_locale() -> void:
 	if change_result == OK:
 		update_translation_data();
 		update_key_files();
+		locale_edit.text = "";
 
 
 func open_userdata() -> void:

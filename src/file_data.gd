@@ -227,6 +227,7 @@ static func create_file(file_path: String) -> FileData:
 	file_data.path = file_path;
 	
 	if FileAccess.file_exists(file_path):
+		push_error("error when creating new file (%s): file exists" % file_path);
 		return null;
 	
 	var handle = FileAccess.open(file_path, FileAccess.WRITE);

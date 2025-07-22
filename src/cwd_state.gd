@@ -36,6 +36,15 @@ func open_file(file_idx: int) -> void:
 	table_data[file_idx] = FileData.open_at(cwd_files[file_idx]);
 
 
+func create_file(file_path: String) -> void:
+	if file_path in cwd_files:
+		return;
+	
+	var full_path = cwd_handle.get_current_dir().path_join(file_path);
+	cwd_files.push_back(full_path);
+	table_data[cwd_files.size() - 1] = FileData.create_file(full_path);
+
+
 func save_file(file_idx: int) -> void:
 	table_data[file_idx].save_current();
 
@@ -131,7 +140,7 @@ func add_new_key(key: String) -> Error:
 	
 	register_change(CompositeChange.create_new(current_file_idx, key));
 	
-	register_key(PackedStringArray(), 0, current_file_idx, []);
+	register_key(PackedStringArray([key]), 0, current_file_idx, []);
 	
 	return OK;
 
