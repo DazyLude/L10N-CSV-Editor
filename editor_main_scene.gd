@@ -18,8 +18,21 @@ var selected_key_data : Dictionary[String, String];
 var key_lookup : Dictionary[String, int];
 
 
-@onready
-var dir_info : Control = $Main/DirInfo;
+enum {
+	DIRECTORY_MENU_OPEN,
+	DIRECTORY_MENU_OPEN_CACHE,
+	DIRECTORY_MENU_CREATE_FILE,
+	DIRECTORY_MENU_SAVE,
+	DIRECTORY_MENU_RESTORE,
+}
+
+
+enum {
+	LOCALIZATION_MENU_ADD_KEY,
+	LOCALIZATION_MENU_ADD_LOCALE,
+}
+
+
 @onready
 var cwd_info : Control = $Main/CWDInfo;
 @onready
@@ -47,13 +60,12 @@ func _ready() -> void:
 	if PersistentData.last_working_directory != "":
 		folder_change_util(PersistentData.last_working_directory);
 	
-	dir_info.get_node(^"ChangeDirButton").pressed.connect(change_folder);
+	prepare_file_menu();
+	prepare_localization_menu();
 	
 	key_select.get_node(^"KeyFilter").text_submitted.connect(on_filter_string_submit);
 	key_select.get_node(^"KeyList").item_selected.connect(display_key_translations);
 	key_select.get_node(^"KeyList").item_selected.connect(update_key_files);
-	
-	$Main/Edit/Files/FileList.multi_selected.connect(update_provided_locales);
 	
 	$Main/FileInfo/CurrentFile.item_selected.connect(select_file);
 	select_file(0);
@@ -70,13 +82,13 @@ func _ready() -> void:
 	display_other_switch.toggled.connect(display_other);
 	display_other(display_other_switch.is_pressed());
 	
-	dir_info.get_node(^"OpenUserdata").pressed.connect(open_userdata);
-	dir_info.get_node(^"SaveData").pressed.connect(save_data);
-	
 	$Main/KeyInfo/AddNewKey.pressed.connect(add_key);
 	$Main/KeyInfo/RenameKey.pressed.connect(rename_key);
 	$Main/LocaleInfo/AddNewLocalization.pressed.connect(add_locale);
-	$Main/FileInfo/AddFile.pressed.connect(create_new_file);
+	
+	$Main/Edit/Files/FileList.multi_selected.connect(update_provided_locales);
+	$Main/Edit/Files/Info/Apply.pressed.connect(apply_filechange);
+	$Main/Edit/Files/Info/Reset.pressed.connect(update_provided_locales);
 
 
 func _notification(what: int) -> void:
@@ -123,6 +135,86 @@ func _shortcut_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"submit_text_change"):
 		get_viewport().gui_release_focus();
 		get_viewport().set_input_as_handled();
+
+
+func prepare_localization_menu() -> void:
+	var menu : PopupMenu = $Main/Menu/Localization;
+	menu.clear(true);
+	
+	menu.add_item("add key to current file", LOCALIZATION_MENU_ADD_KEY);
+	menu.add_item("add locale to current file", LOCALIZATION_MENU_ADD_LOCALE);
+	
+	menu.id_pressed.connect(handle_localization_menu);
+
+
+func handle_localization_menu(idx: int) -> void:
+	match idx:
+		LOCALIZATION_MENU_ADD_KEY:
+			spawn_confirmation_with_string_and_file_input("key", "new key name", add_key, Callable());
+		LOCALIZATION_MENU_ADD_LOCALE:
+			spawn_confirmation_with_string_and_file_input("locale", "new locale code", add_locale, Callable());
+
+
+func prepare_file_menu() -> void:
+	var menu : PopupMenu = $Main/Menu/Directory;
+	menu.clear(true);
+	
+	menu.add_item("change working directory", DIRECTORY_MENU_OPEN);
+	menu.add_item("open cache directory", DIRECTORY_MENU_OPEN_CACHE);
+	menu.add_item("create file", DIRECTORY_MENU_CREATE_FILE)
+	menu.add_item("save changes", DIRECTORY_MENU_SAVE);
+	menu.add_item("restore session", DIRECTORY_MENU_RESTORE);
+	
+	menu.id_pressed.connect(handle_file_menu);
+
+
+func handle_file_menu(idx: int) -> void:
+	
+	match idx:
+		DIRECTORY_MENU_OPEN:
+			change_folder()
+		DIRECTORY_MENU_OPEN_CACHE:
+			open_userdata()
+		DIRECTORY_MENU_CREATE_FILE:
+			create_new_file();
+		DIRECTORY_MENU_SAVE:
+			save_data()
+		DIRECTORY_MENU_RESTORE:
+			data.restore_backup();
+
+
+func spawn_confirmation_with_string_and_file_input(
+		item: String,
+		placeholder: String,
+		on_submit: Callable,
+		on_cancel: Callable
+	) -> void:
+		var popup : ConfirmationDialog = $AddItem;
+		var file_select : OptionButton = $AddItem/GridContainer/FileSelect;
+		var item_label : Label = $AddItem/GridContainer/ItemLabel;
+		var item_input : LineEdit = $AddItem/GridContainer/ItemInput;
+		
+		# cleanup
+		item_input.text = "";
+		
+		for connection in popup.canceled.get_connections():
+			popup.canceled.disconnect(connection["callable"]);
+		
+		for connection in popup.confirmed.get_connections():
+			popup.confirmed.disconnect(connection["callable"]);
+		
+		# setup
+		item_label.text = item;
+		item_input.placeholder_text = placeholder;
+		popup.title = "add %s" % item;
+		file_select.select(data.current_file_idx);
+		
+		if not on_submit.is_null():
+			popup.confirmed.connect(on_submit, CONNECT_ONE_SHOT);
+		if not on_cancel.is_null():
+			popup.canceled.connect(on_cancel, CONNECT_ONE_SHOT);
+		
+		popup.popup();
 
 
 func apply_meta(meta: String) -> void:
@@ -187,7 +279,7 @@ func on_filter_string_submit(query: String) -> void:
 
 
 func update_cwd_data_display() -> void:
-	dir_info.get_node(^"DirName").text = data.cwd_handle.get_current_dir(true);
+	cwd_info.get_node(^"DirName").text = data.cwd_handle.get_current_dir(true);
 	cwd_info.get_node(^"FileCount").text = "files found: %d" % data.cwd_files.size();
 	cwd_info.get_node(^"KeyCount").text = "total keys: %d" % data.keys.size();
 	cwd_info.get_node(^"UniqueL10Ns").text = "total localizations: %d" % data.localizations.size();
@@ -208,6 +300,7 @@ func refresh_list_of_keys() -> void:
 
 func refresh_list_of_files() -> void:
 	var file_selector : OptionButton = file_info.get_node(^"CurrentFile");
+	var popup_file_select : OptionButton = $AddItem/GridContainer/FileSelect;
 	var file_list : ItemList = file_edit.get_node(^"FileList");
 	file_selector.clear();
 	file_list.clear();
@@ -215,10 +308,12 @@ func refresh_list_of_files() -> void:
 	file_selector.add_item("not selected");
 	for file in data.cwd_files:
 		file_selector.add_item(file.get_file());
+		popup_file_select.add_item(file.get_file());
 		file_list.add_item(file.get_file());
 	
 	if data.current_file_idx != -1:
-		file_selector.select(data.current_file_idx + 1);
+		file_selector.select(data.current_file_idx + 1); # idx is offset because of "not selected" label
+		popup_file_select.select(data.current_file_idx);
 
 
 func update_key_files(_idx: int = 0) -> void:
@@ -242,6 +337,14 @@ func update_provided_locales(_idx: int = 0, _sel: bool = true) -> void:
 	
 	var current_filelist := Array(file_list.get_selected_items() as Array, TYPE_INT, &"", null);
 	provided_locales.text = "current locales: %s" % data.get_files_localizations(current_filelist);
+
+
+func apply_filechange() -> void:
+	var file_list : ItemList = file_edit.get_node(^"FileList");
+	var selected_files := Array(file_list.get_selected_items());
+	var selected_files_typed := Array(selected_files, TYPE_INT, &"", null);
+	
+	data.move_key_to_files(selected_key, selected_files_typed);
 
 
 func create_new_file() -> void:
@@ -293,7 +396,6 @@ func folder_change_util(path: String) -> void:
 	file_info.show();
 	key_info.show();
 	$Main/Edit.show();
-	
 	
 	data.scan_cwd(path);
 	update_cwd_data_display();

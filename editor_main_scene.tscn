@@ -13,6 +13,39 @@ grow_vertical = 2
 theme = ExtResource("1_y4ppj")
 script = ExtResource("1_swu64")
 
+[node name="AddItem" type="ConfirmationDialog" parent="."]
+title = "add {item}"
+initial_position = 2
+size = Vector2i(250, 119)
+
+[node name="GridContainer" type="GridContainer" parent="AddItem"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = 70.0
+grow_horizontal = 2
+columns = 2
+
+[node name="FileLabel" type="Label" parent="AddItem/GridContainer"]
+layout_mode = 2
+text = "current file"
+horizontal_alignment = 2
+
+[node name="FileSelect" type="OptionButton" parent="AddItem/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ItemLabel" type="Label" parent="AddItem/GridContainer"]
+layout_mode = 2
+text = "{item}"
+horizontal_alignment = 2
+
+[node name="ItemInput" type="LineEdit" parent="AddItem/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="Main" type="GridContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -21,31 +54,25 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="DirInfo" type="HBoxContainer" parent="Main"]
+[node name="Menu" type="MenuBar" parent="Main"]
+custom_minimum_size = Vector2(0, 35)
 layout_mode = 2
 
-[node name="SaveData" type="Button" parent="Main/DirInfo"]
-layout_mode = 2
-text = "save changes"
+[node name="Directory" type="PopupMenu" parent="Main/Menu"]
+item_count = 1
+item_0/id = 0
 
-[node name="ChangeDirButton" type="Button" parent="Main/DirInfo"]
-layout_mode = 2
-text = "change working directory"
-
-[node name="DirName" type="Label" parent="Main/DirInfo"]
-layout_mode = 2
-text = "cwd: lorem ipsum\\dolor sit amet"
-
-[node name="RestoreSession" type="Button" parent="Main/DirInfo"]
-layout_mode = 2
-text = "save changes"
-
-[node name="OpenUserdata" type="Button" parent="Main/DirInfo"]
-layout_mode = 2
-text = "open backups and logs folder"
+[node name="Localization" type="PopupMenu" parent="Main/Menu"]
+auto_translate_mode = 1
+item_count = 1
+item_0/id = 0
 
 [node name="CWDInfo" type="HBoxContainer" parent="Main"]
 layout_mode = 2
+
+[node name="DirName" type="Label" parent="Main/CWDInfo"]
+layout_mode = 2
+text = "cwd: lorem ipsum\\dolor sit amet"
 
 [node name="FileCount" type="Label" parent="Main/CWDInfo"]
 layout_mode = 2
@@ -82,10 +109,6 @@ item_1/text = "item2"
 [node name="FileInfo" type="HBoxContainer" parent="Main"]
 layout_mode = 2
 
-[node name="AddFile" type="Button" parent="Main/FileInfo"]
-layout_mode = 2
-text = "add file"
-
 [node name="CurrenFileLabel" type="Label" parent="Main/FileInfo"]
 layout_mode = 2
 text = "current file:"
@@ -110,7 +133,7 @@ text = "rename key"
 
 [node name="KeyEditLabel" type="Label" parent="Main/KeyInfo"]
 layout_mode = 2
-text = "change key:"
+text = "key:"
 
 [node name="KeyEdit" type="LineEdit" parent="Main/KeyInfo"]
 custom_minimum_size = Vector2(150, 0)
