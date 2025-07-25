@@ -162,13 +162,15 @@ func backup_changes() -> Error:
 	var backup_path = get_backup_file_path();
 	
 	var changes_count = changes_position - on_disk_position;
-	if changes_count <= 0: # nothing to backup, removing existing file.
+	if changes_count <= 0: # 
+		print("nothing to backup, removing existing file. (%s)" % path);
 		return DirAccess.remove_absolute(backup_path);
 	
 	var change_data = changes.slice(on_disk_position, changes_position);
 	var change_data_hash = hash(change_data);
 	
-	if change_data_hash == get_backup_change_hash(backup_path): # backup already done, no need to rewrite
+	if change_data_hash == get_backup_change_hash(backup_path):
+		print("backup, up to date (%s)" % path);
 		return OK;
 	
 	var handle = FileAccess.open(backup_path, FileAccess.WRITE);
@@ -184,6 +186,7 @@ func backup_changes() -> Error:
 		stored_array.append_array(change.data);
 		handle.store_csv_line(stored_array);
 	
+	print("backup successful (%s)" % path);
 	return handle.get_error();
 
 
@@ -274,7 +277,6 @@ static func open_at(file_path: String) -> FileData:
 	file_data.on_disk_data_hash = hash(file_data.data);
 	
 	handle.close();
-	file_data.restore_changes();
 	
 	return file_data;
 

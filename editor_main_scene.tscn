@@ -13,6 +13,9 @@ grow_vertical = 2
 theme = ExtResource("1_y4ppj")
 script = ExtResource("1_swu64")
 
+[node name="Notification" type="AcceptDialog" parent="."]
+initial_position = 2
+
 [node name="AddItem" type="ConfirmationDialog" parent="."]
 title = "add {item}"
 initial_position = 2
@@ -106,26 +109,8 @@ same_column_width = true
 item_0/text = "item"
 item_1/text = "item2"
 
-[node name="FileInfo" type="HBoxContainer" parent="Main"]
-layout_mode = 2
-
-[node name="CurrenFileLabel" type="Label" parent="Main/FileInfo"]
-layout_mode = 2
-text = "current file:"
-
-[node name="CurrentFile" type="OptionButton" parent="Main/FileInfo"]
-layout_mode = 2
-
-[node name="KeyCount" type="Label" parent="Main/FileInfo"]
-layout_mode = 2
-text = "string keys: 10"
-
 [node name="KeyInfo" type="HBoxContainer" parent="Main"]
 layout_mode = 2
-
-[node name="AddNewKey" type="Button" parent="Main/KeyInfo"]
-layout_mode = 2
-text = "add new key"
 
 [node name="RenameKey" type="Button" parent="Main/KeyInfo"]
 layout_mode = 2
@@ -146,20 +131,6 @@ expand_to_text_length = true
 visible = false
 layout_mode = 2
 text = "warnings: none"
-
-[node name="LocaleInfo" type="HBoxContainer" parent="Main"]
-layout_mode = 2
-
-[node name="AddNewLocalization" type="Button" parent="Main/LocaleInfo"]
-layout_mode = 2
-text = "add new localization"
-
-[node name="LocaleEdit" type="LineEdit" parent="Main/LocaleInfo"]
-custom_minimum_size = Vector2(150, 0)
-layout_mode = 2
-size_flags_vertical = 0
-placeholder_text = "new locale"
-expand_to_text_length = true
 
 [node name="Edit" type="TabContainer" parent="Main"]
 layout_mode = 2

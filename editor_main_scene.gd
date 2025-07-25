@@ -38,8 +38,6 @@ var cwd_info : Control = $Main/CWDInfo;
 @onready
 var key_select : Control = $Main/KeySelect;
 @onready
-var file_info : Control = $Main/FileInfo;
-@onready
 var key_info : Control = $Main/KeyInfo;
 @onready
 var localization_edit : Control = $Main/Edit/Localization/EditFields;
@@ -52,7 +50,6 @@ var status_info : Control = $Main/Messages/MessagesContainer;
 func _ready() -> void:
 	cwd_info.hide();
 	key_select.hide();
-	file_info.hide();
 	key_info.hide();
 	$Main/Edit.hide();
 	
@@ -67,9 +64,6 @@ func _ready() -> void:
 	key_select.get_node(^"KeyList").item_selected.connect(display_key_translations);
 	key_select.get_node(^"KeyList").item_selected.connect(update_key_files);
 	
-	$Main/FileInfo/CurrentFile.item_selected.connect(select_file);
-	select_file(0);
-	
 	localization_edit.get_node(^"Locale").item_selected.connect(update_translation);
 	localization_edit.get_node(^"OtherLocale").item_selected.connect(update_other_translation);
 	
@@ -78,13 +72,13 @@ func _ready() -> void:
 	localization_edit.get_node(^"OtherTranslation").focus_entered.connect(start_editing.bind(false));
 	localization_edit.get_node(^"OtherTranslation").focus_exited.connect(edit_translation);
 	
+	$AddItem/GridContainer/FileSelect.item_selected.connect(select_file)
+	
 	var display_other_switch := $Main/Edit/Localization/DisplayOther;
 	display_other_switch.toggled.connect(display_other);
 	display_other(display_other_switch.is_pressed());
 	
-	$Main/KeyInfo/AddNewKey.pressed.connect(add_key);
 	$Main/KeyInfo/RenameKey.pressed.connect(rename_key);
-	$Main/LocaleInfo/AddNewLocalization.pressed.connect(add_locale);
 	
 	$Main/Edit/Files/FileList.multi_selected.connect(update_provided_locales);
 	$Main/Edit/Files/Info/Apply.pressed.connect(apply_filechange);
@@ -93,8 +87,9 @@ func _ready() -> void:
 
 func _notification(what: int) -> void:
 	match what:
-		NOTIFICATION_WM_CLOSE_REQUEST:
+		NOTIFICATION_WM_CLOSE_REQUEST, NOTIFICATION_CRASH:
 			PersistentData.save();
+			data.backup_changes();
 
 
 func _shortcut_input(event: InputEvent) -> void:
@@ -141,8 +136,8 @@ func prepare_localization_menu() -> void:
 	var menu : PopupMenu = $Main/Menu/Localization;
 	menu.clear(true);
 	
-	menu.add_item("add key to current file", LOCALIZATION_MENU_ADD_KEY);
-	menu.add_item("add locale to current file", LOCALIZATION_MENU_ADD_LOCALE);
+	menu.add_item("add key", LOCALIZATION_MENU_ADD_KEY);
+	menu.add_item("add locale", LOCALIZATION_MENU_ADD_LOCALE);
 	
 	menu.id_pressed.connect(handle_localization_menu);
 
@@ -160,16 +155,15 @@ func prepare_file_menu() -> void:
 	menu.clear(true);
 	
 	menu.add_item("change working directory", DIRECTORY_MENU_OPEN);
-	menu.add_item("open cache directory", DIRECTORY_MENU_OPEN_CACHE);
 	menu.add_item("create file", DIRECTORY_MENU_CREATE_FILE)
 	menu.add_item("save changes", DIRECTORY_MENU_SAVE);
+	menu.add_item("open cache directory", DIRECTORY_MENU_OPEN_CACHE);
 	menu.add_item("restore session", DIRECTORY_MENU_RESTORE);
 	
 	menu.id_pressed.connect(handle_file_menu);
 
 
 func handle_file_menu(idx: int) -> void:
-	
 	match idx:
 		DIRECTORY_MENU_OPEN:
 			change_folder()
@@ -210,11 +204,19 @@ func spawn_confirmation_with_string_and_file_input(
 		file_select.select(data.current_file_idx);
 		
 		if not on_submit.is_null():
-			popup.confirmed.connect(on_submit, CONNECT_ONE_SHOT);
+			popup.confirmed.connect(on_submit);
 		if not on_cancel.is_null():
-			popup.canceled.connect(on_cancel, CONNECT_ONE_SHOT);
+			popup.canceled.connect(on_cancel);
 		
 		popup.popup();
+
+
+func spawn_notification(text: String) -> void:
+	var noto : AcceptDialog = $Notification;
+	
+	noto.dialog_text = text;
+	
+	noto.popup();
 
 
 func apply_meta(meta: String) -> void:
@@ -299,21 +301,21 @@ func refresh_list_of_keys() -> void:
 
 
 func refresh_list_of_files() -> void:
-	var file_selector : OptionButton = file_info.get_node(^"CurrentFile");
 	var popup_file_select : OptionButton = $AddItem/GridContainer/FileSelect;
 	var file_list : ItemList = file_edit.get_node(^"FileList");
-	file_selector.clear();
 	file_list.clear();
 	
-	file_selector.add_item("not selected");
+	popup_file_select.add_item("not selected");
 	for file in data.cwd_files:
-		file_selector.add_item(file.get_file());
 		popup_file_select.add_item(file.get_file());
 		file_list.add_item(file.get_file());
 	
 	if data.current_file_idx != -1:
-		file_selector.select(data.current_file_idx + 1); # idx is offset because of "not selected" label
 		popup_file_select.select(data.current_file_idx);
+
+
+func select_file(selected_idx: int) -> void:
+	data.current_file_idx = selected_idx - 1;
 
 
 func update_key_files(_idx: int = 0) -> void:
@@ -345,6 +347,9 @@ func apply_filechange() -> void:
 	var selected_files_typed := Array(selected_files, TYPE_INT, &"", null);
 	
 	data.move_key_to_files(selected_key, selected_files_typed);
+	
+	if selected_key_idx != -1:
+		update_localization_select();
 
 
 func create_new_file() -> void:
@@ -393,7 +398,6 @@ func finish_change_folder(dir: String, dialog: FileDialog) -> void:
 func folder_change_util(path: String) -> void:
 	cwd_info.show();
 	key_select.show();
-	file_info.show();
 	key_info.show();
 	$Main/Edit.show();
 	
@@ -440,8 +444,15 @@ func update_other_translation(_idx: int = -1) -> void:
 
 
 func update_localization_select() -> void:
-	var locale := localization_edit.get_node(^"Locale");
-	var other_locale := localization_edit.get_node(^"OtherLocale");
+	var locale : OptionButton = localization_edit.get_node(^"Locale");
+	var other_locale : OptionButton = localization_edit.get_node(^"OtherLocale");
+	
+	var selected_locale_code := ""
+	if locale.selected != -1:
+		locale.get_item_text(locale.selected);
+	var selected_other_code := "";
+	if other_locale.selected != -1:
+		other_locale.get_item_text(other_locale.selected);
 	
 	var temp_idx : int = locale.selected;
 	var temp_idx_other : int = other_locale.selected;
@@ -451,25 +462,21 @@ func update_localization_select() -> void:
 	
 	var locale_check = {};
 	locale_check.merge(selected_key_data);
-	locale_check.merge(data.localizations);
 	
-	for locale_key in locale_check.keys():
+	var locales := locale_check.keys();
+	
+	for locale_key in locales:
 		locale.add_item(locale_key);
 		other_locale.add_item(locale_key);
 	
-	if temp_idx < locale.item_count:
-		locale.select(temp_idx);
-		update_translation();
-	else:
-		locale.select(0);
-		update_translation();
+	if selected_locale_code in locales:
+		locale.select(locales.find(selected_locale_code));
 	
-	if temp_idx_other < other_locale.item_count:
-		other_locale.select(temp_idx_other);
-		update_other_translation();
-	else:
-		other_locale.select(0);
-		update_other_translation();
+	if selected_other_code in locales:
+		other_locale.select(locales.find(selected_other_code));
+	
+	update_translation();
+	update_other_translation();
 
 
 func display_other(y: bool) -> void:
@@ -501,29 +508,24 @@ func edit_translation() -> void:
 	display_key_translations(selected_key_idx);
 
 
-func select_file(selected_idx: int) -> void:
-	data.current_file_idx = selected_idx - 1;
-	
-	var key_count : Label = file_info.get_node(^"KeyCount");
-	
-	var file_selected = data.current_file_idx != -1;
-	if file_selected:
-		var filedata := data.get_file_data(data.current_file_idx);
-		key_count.text = "keys: %d" % filedata.data.size();
-	
-	key_count.visible = file_selected;
-
-
 func add_key() -> void:
-	var new_key_name = key_info.get_node(^"KeyEdit").text;
+	var key_edit : LineEdit = $AddItem/GridContainer/ItemInput;
+	var new_key_name = key_edit.text;
+	
+	if data.current_file_idx == -1:
+		spawn_notification("couldn't add key: select a file");
+		return;
 	
 	if new_key_name == "" or key_lookup.has(new_key_name):
+		spawn_notification("couldn't add key: name exists or empty");
 		return;
 	
 	var change_result = data.add_new_key(new_key_name);
 	if change_result == OK:
 		selected_key = new_key_name;
 		refresh_list_of_keys();
+	else:
+		spawn_notification("couldn't add key: check logs");
 
 
 func rename_key() -> void:
@@ -531,6 +533,7 @@ func rename_key() -> void:
 	var old_key_name = selected_key;
 	
 	if new_key_name == "" or new_key_name == old_key_name:
+		spawn_notification("couldn't rename key: invalid name");
 		return;
 	
 	var change_result = data.rename_key(old_key_name, new_key_name);
@@ -539,16 +542,24 @@ func rename_key() -> void:
 		if selected_key_idx != -1:
 			display_key_translations(selected_key_idx);
 		update_key_files();
+	else:
+		match change_result:
+			ERR_INVALID_DATA:
+				spawn_notification("couldn't rename key: new name already taken, or old name doesn't exist");
+			_, FAILED:
+				spawn_notification("couldn't rename key");
 
 
 func add_locale() -> void:
-	var locale_edit = $Main/LocaleInfo/LocaleEdit
+	var locale_edit : LineEdit = $AddItem/GridContainer/ItemInput;
 	var new_locale = locale_edit.text;
 	
 	if data.current_file_idx == -1:
+		spawn_notification("couldn't add locale: select a file");
 		return;
 	
 	if new_locale in data.get_file_data(data.current_file_idx).get_locales():
+		spawn_notification("couldn't add locale: locale already in the file");
 		return;
 	
 	var change_result = data.add_locale_to_file(new_locale);
@@ -556,6 +567,8 @@ func add_locale() -> void:
 		update_translation_data();
 		update_key_files();
 		locale_edit.text = "";
+	else:
+		spawn_notification("couldn't add locale: check logs");
 
 
 func open_userdata() -> void:

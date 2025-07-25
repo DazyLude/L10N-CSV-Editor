@@ -64,18 +64,15 @@ static func from_query(filter_query: String, data: CWDState) -> FilterData:
 			_:
 				new_filter_data.key_filters.push_back("*%s*" % setting);
 	
-	if not new_filter_data.is_case_sensitive:
-		file_filters = file_filters.map(func(s: String): return s.to_lower());
-		var cwd_files_temp = Array(data.cwd_files).map(func(s: String): return s.to_lower());
-		var file_idxs_temp = file_filters\
-			.map(cwd_files_temp.find)\
-			.filter(func(idx: int): return idx != -1);
-		new_filter_data.file_idxs = Array(file_idxs_temp, TYPE_INT, &"", null);
-	else:
-		var file_idxs_temp = file_filters\
-			.map(data.cwd_files.find)\
-			.filter(func(idx: int): return idx != -1);
-		new_filter_data.file_idxs = Array(file_idxs_temp, TYPE_INT, &"", null);
+	file_filters = file_filters.map(func(s: String): return s.to_lower());
+	var cwd_files_temp = Array(data.cwd_files).map(func(s: String): return s.to_lower());
+	var file_idxs_temp = cwd_files_temp\
+		.filter(func(file: String): return file_filters.any(
+			file.match if new_filter_data.is_case_sensitive else file.matchn)
+		)\
+		.map(cwd_files_temp.find)\
+		.filter(func(idx: int): return idx != -1);
+	new_filter_data.file_idxs = Array(file_idxs_temp, TYPE_INT, &"", null);
 	
 	return new_filter_data;
 

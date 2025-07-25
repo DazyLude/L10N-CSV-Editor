@@ -116,6 +116,7 @@ func restore_backup() -> void:
 		var path = table_data[file_idx].path;
 		table_data.erase(file_idx);
 		table_data[file_idx] = FileData.open_at(path);
+		table_data[file_idx].restore_changes();
 
 
 func save_changes() -> void:
